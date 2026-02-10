@@ -43,7 +43,7 @@ export default function OrderEntry() {
         client_name: formData.client_name,
         ring_size: formData.ring_size,
         metal_type: formData.metal_type,
-        cad_url: imagePath
+        cad_url: imagePath,
         current_stage: 'At Casting'
       }])
       .select()
