@@ -1,268 +1,134 @@
 'use client'
 import { useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
-import { QRCodeCanvas } from 'qrcode.react' 
-import { Printer, Loader2 } from 'lucide-react'
+import { QRCodeCanvas } from 'qrcode.react'
+import { PlusCircle, Printer, CheckCircle2, PackagePlus } from 'lucide-react'
+
+// CHANGE THIS to your actual Vercel URL once you deploy!
+const SITE_URL = typeof window !== 'undefined' ? window.location.origin : 'https://atelier-os.vercel.app'
 
 export default function OrderEntry() {
   const [loading, setLoading] = useState(false)
-  const [order, setOrder] = useState(null)
+  const [savedOrder, setSavedOrder] = useState(null)
   const [formData, setFormData] = useState({
     vtiger_id: '',
     client_name: '',
-    ring_size: '',
-    metal_type: '18k Yellow Gold',
-    due_date: '',
+    description: '',
+    current_stage: 'At Casting',
     is_rush: false
   })
-  const [file, setFile] = useState(null)
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     setLoading(true)
-
-    let imagePath = null
-    if (file) {
-      const fileExt = file.name.split('.').pop()
-      const fileName = `${formData.vtiger_id}-${Date.now()}.${fileExt}`
-      
-      const { data, error: uploadError } = await supabase.storage
-        .from('cad-renders')
-        .upload(fileName, file)
-      
-      if (uploadError) {
-        alert('Image upload failed: ' + uploadError.message)
-        setLoading(false)
-        return
-      }
-      
-      if (data) {
-        const { data: urlData } = supabase.storage
-        .from('cad-renders')
-        .getPublicUrl(fileName)
-        imagePath = urlData.publicUrl
-      }
-    }
-
+    
     const { data, error } = await supabase
       .from('orders')
-      .insert([{
-        vtiger_id: formData.vtiger_id,
-        client_name: formData.client_name,
-        ring_size: formData.ring_size,
-        metal_type: formData.metal_type,
-        cad_url: imagePath,
-        current_stage: 'At Casting',
-        due_date: formData.due_date || null,
-        is_rush: formData.is_rush
-      }])
+      .insert([formData])
       .select()
+      .single()
 
     if (error) {
-      alert('Error: ' + error.message)
+      alert("Error saving order: " + error.message)
     } else {
-      setOrder(data[0])
+      setSavedOrder(data)
+      // Optional: Reset form
+      setFormData({ vtiger_id: '', client_name: '', description: '', current_stage: 'At Casting', is_rush: false })
     }
     setLoading(false)
   }
 
-  const handlePrint = () => {
-    window.print()
-  }
-
-  const resetForm = () => {
-    setOrder(null)
-    setFile(null)
-    setFormData({
-      vtiger_id: '',
-      client_name: '',
-      ring_size: '',
-      metal_type: '18k Yellow Gold',
-      due_date: '',
-      is_rush: false
-    })
-  }
-
   return (
-    <div className="max-w-xl mx-auto p-8 bg-white min-h-screen font-sans text-gray-900">
+    <div className="max-w-4xl mx-auto p-6 grid grid-cols-1 md:grid-cols-2 gap-10">
       
-      {!order && (
-        <form onSubmit={handleSubmit} className="space-y-6 border p-6 rounded-lg shadow-sm">
-          <h2 className="text-2xl font-bold mb-6 text-gray-800 border-b pb-2">New Production Order</h2>
-          
-          <div>
-            <label className="block text-sm font-bold mb-1">vTiger Order ID</label>
-            <input 
-              required
-              type="text" 
-              placeholder="e.g. SO-2024-001"
-              className="w-full p-3 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 outline-none"
-              value={formData.vtiger_id}
-              onChange={e => setFormData({...formData, vtiger_id: e.target.value})}
-            />
+      {/* LEFT SIDE: THE FORM */}
+      <div className="space-y-6">
+        <div className="flex items-center gap-3 mb-8">
+          <div className="bg-black text-white p-2 rounded-lg">
+            <PackagePlus size={24} />
           </div>
+          <h1 className="text-3xl font-black uppercase tracking-tighter">New Job Entry</h1>
+        </div>
 
-          <div>
-            <label className="block text-sm font-bold mb-1">Client Name</label>
-            <input 
-              required
-              type="text" 
-              className="w-full p-3 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 outline-none"
-              value={formData.client_name}
-              onChange={e => setFormData({...formData, client_name: e.target.value})}
-            />
-          </div>
-
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-bold mb-1">Ring Size</label>
-              <input 
-                type="text" 
-                className="w-full p-3 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 outline-none"
-                value={formData.ring_size}
-                onChange={e => setFormData({...formData, ring_size: e.target.value})}
-              />
+            <div className="flex flex-col">
+              <label className="text-[10px] font-black uppercase text-gray-400 mb-1">Job ID (vTiger)</label>
+              <input required type="text" placeholder="SO-1234" className="p-4 border-4 border-black rounded-xl font-black text-xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] outline-none focus:bg-yellow-50" 
+                value={formData.vtiger_id} onChange={e => setFormData({...formData, vtiger_id: e.target.value.toUpperCase()})} />
             </div>
-            <div>
-              <label className="block text-sm font-bold mb-1">Metal</label>
-              <select 
-                className="w-full p-3 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 outline-none"
-                value={formData.metal_type}
-                onChange={e => setFormData({...formData, metal_type: e.target.value})}
-              >
-                <option>18k Yellow Gold</option>
-                <option>18k White Gold</option>
-                <option>18k Rose Gold</option>
-                <option>Platinum</option>
-                <option>Silver 925</option>
-              </select>
+            <div className="flex flex-col">
+              <label className="text-[10px] font-black uppercase text-gray-400 mb-1">Priority</label>
+              <button type="button" onClick={() => setFormData({...formData, is_rush: !formData.is_rush})} 
+                className={`h-full border-4 border-black rounded-xl font-black transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] ${formData.is_rush ? 'bg-red-500 text-white translate-y-1 shadow-none' : 'bg-white text-black'}`}>
+                {formData.is_rush ? '🔥 RUSH JOB' : 'STANDARD'}
+              </button>
             </div>
           </div>
 
-          <div>
-            <label className="block text-sm font-bold mb-1">CAD Render (Image)</label>
-            <input 
-              type="file" 
-              accept="image/*"
-              className="w-full mt-1 text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-              onChange={e => setFile(e.target.files[0])}
-            />
+          <div className="flex flex-col">
+            <label className="text-[10px] font-black uppercase text-gray-400 mb-1">Client Name</label>
+            <input required type="text" placeholder="e.g. John Smith" className="p-4 border-4 border-black rounded-xl font-bold shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] outline-none" 
+              value={formData.client_name} onChange={e => setFormData({...formData, client_name: e.target.value})} />
           </div>
 
-          <div className="flex gap-4">
-            <div className="flex-1">
-              <label className="block text-sm font-bold mb-1">Due Date</label>
-              <input 
-                type="date" 
-                className="w-full p-3 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 outline-none"
-                value={formData.due_date}
-                onChange={e => setFormData({...formData, due_date: e.target.value})}
-              />
-            </div>
-            <div className="flex items-center gap-2 pt-6">
-              <input 
-                type="checkbox" 
-                className="w-5 h-5 rounded border-gray-300 focus:ring-2 focus:ring-blue-500"
-                checked={formData.is_rush}
-                onChange={e => setFormData({...formData, is_rush: e.target.checked})}
-              />
-              <label className="font-bold text-red-600 uppercase text-sm">Rush Order</label>
-            </div>
+          <div className="flex flex-col">
+            <label className="text-[10px] font-black uppercase text-gray-400 mb-1">Job Details</label>
+            <textarea rows="3" placeholder="Specs, metal, stones..." className="p-4 border-4 border-black rounded-xl font-bold shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] outline-none" 
+              value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} />
           </div>
 
-          <button 
-            disabled={loading}
-            className="w-full bg-blue-600 text-white p-4 rounded-lg hover:bg-blue-700 font-bold flex justify-center items-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {loading ? (
-              <>
-                <Loader2 className="animate-spin mr-2" size={20} />
-                {file ? 'Uploading Image & Creating Order...' : 'Creating Order...'}
-              </>
-            ) : (
-              'Create Job Ticket'
-            )}
+          <button disabled={loading} type="submit" className="w-full bg-blue-600 text-white p-5 border-4 border-black rounded-2xl font-black text-xl shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] active:shadow-none active:translate-y-1 transition-all">
+            {loading ? 'SAVING...' : 'CREATE JOB ENTRY'}
           </button>
         </form>
-      )}
+      </div>
 
-      {order && (
-        <div className="text-center">
-          <div className="bg-green-50 p-4 rounded-lg mb-8 border border-green-200 print:hidden">
-            <h3 className="text-green-800 font-bold text-lg">Order Saved Successfully!</h3>
-            <button 
-              onClick={handlePrint}
-              className="mt-3 bg-green-600 text-white px-6 py-3 rounded-lg font-bold flex items-center justify-center gap-2 w-full hover:bg-green-700 transition-colors shadow-lg"
-            >
-              <Printer size={20} /> Print Job Ticket
+      {/* RIGHT SIDE: THE SMART LABEL PREVIEW */}
+      <div className="flex flex-col items-center justify-center border-4 border-dashed border-gray-200 rounded-[3rem] p-10 bg-white">
+        {savedOrder ? (
+          <div className="animate-in zoom-in duration-300 flex flex-col items-center">
+            <div className="bg-green-100 text-green-700 px-4 py-1 rounded-full text-[10px] font-black uppercase mb-6 flex items-center gap-1">
+              <CheckCircle2 size={12}/> Successfully Saved
+            </div>
+            
+            {/* PRINTABLE LABEL COMPONENT */}
+            <div id="job-label" className="bg-white border-4 border-black p-6 w-64 shadow-[10px_10px_0px_0px_rgba(0,0,0,0.1)] flex flex-col items-center text-center">
+              <h2 className="text-3xl font-black mb-1 leading-none">{savedOrder.vtiger_id}</h2>
+              <p className="text-[10px] font-black uppercase text-gray-400 mb-4">{savedOrder.client_name}</p>
+              
+              <div className="bg-white p-2 border-2 border-black rounded-lg mb-4">
+                <QRCodeCanvas 
+                  value={`${SITE_URL}/workshop?search=${savedOrder.vtiger_id}`} 
+                  size={140}
+                  level={"H"}
+                />
+              </div>
+
+              <p className="text-[8px] font-black uppercase tracking-widest leading-tight">
+                Scan with any phone camera<br/>to update workshop status
+              </p>
+            </div>
+
+            <button onClick={() => window.print()} className="mt-8 flex items-center gap-2 font-black uppercase text-sm border-b-2 border-black pb-1 hover:text-blue-600 transition-colors">
+              <Printer size={16}/> Print Job Label
+            </button>
+            
+            <button onClick={() => setSavedOrder(null)} className="mt-4 text-xs font-bold text-gray-400">
+              Create another?
             </button>
           </div>
-
-          {/* THE PRINTABLE TICKET */}
-          <div className="border-4 border-black p-6 rounded-xl bg-white max-w-lg mx-auto print:border-2 print:shadow-none shadow-2xl">
-            <div className="flex justify-between items-start mb-6">
-              <div className="text-left">
-                <h1 className="text-4xl font-extrabold tracking-tighter">{order.vtiger_id}</h1>
-                <p className="text-gray-500 font-semibold mt-1 uppercase tracking-wide">{order.client_name}</p>
-              </div>
-              <div className="border-2 border-black p-1">
-                <QRCodeCanvas value={order.vtiger_id} size={100} />
-              </div>
+        ) : (
+          <div className="text-center space-y-4">
+            <div className="bg-gray-50 w-24 h-24 rounded-full flex items-center justify-center mx-auto">
+              <PlusCircle className="text-gray-200" size={48} />
             </div>
-
-            <hr className="border-black border-t-2 my-4"/>
-
-            <div className="grid grid-cols-2 gap-6 text-left font-mono my-6">
-              <div className="bg-gray-100 p-3 rounded">
-                <span className="block text-xs text-gray-500 uppercase font-bold">Metal Type</span>
-                <span className="font-bold text-xl block leading-tight">{order.metal_type}</span>
-              </div>
-              <div className="bg-gray-100 p-3 rounded">
-                <span className="block text-xs text-gray-500 uppercase font-bold">Ring Size</span>
-                <span className="font-bold text-xl block leading-tight">{order.ring_size || 'N/A'}</span>
-              </div>
-            </div>
-
-            {order.due_date && (
-              <div className="bg-blue-50 border-2 border-blue-300 p-3 rounded-lg mb-4">
-                <span className="block text-xs text-blue-600 uppercase font-bold">Due Date</span>
-                <span className="font-bold text-lg block leading-tight text-blue-900">
-                  {new Date(order.due_date).toLocaleDateString('en-US', { 
-                    weekday: 'short', 
-                    year: 'numeric', 
-                    month: 'short', 
-                    day: 'numeric' 
-                  })}
-                </span>
-              </div>
-            )}
-
-            {order.is_rush && (
-              <div className="bg-red-100 border-4 border-red-600 p-4 rounded-lg mb-4">
-                <span className="font-black text-2xl text-red-600 uppercase tracking-wider">⚠️ RUSH ORDER</span>
-              </div>
-            )}
-
-            {order.cad_url && (
-              <div className="mt-6 border-2 border-gray-200 rounded-lg overflow-hidden bg-gray-50">
-                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={order.cad_url} alt="CAD" className="w-full h-64 object-contain mx-auto" />
-              </div>
-            )}
-            
-            <div className="mt-8 pt-4 border-t border-dashed border-gray-300">
-               <p className="text-xs text-center text-gray-400 font-mono uppercase">Internal Production Ticket • Atelier Use Only</p>
-            </div>
+            <p className="font-black text-gray-300 uppercase text-xs tracking-widest">
+              Label Preview will<br/>appear after saving
+            </p>
           </div>
-
-          <button 
-            onClick={resetForm} 
-            className="mt-12 text-gray-400 hover:text-gray-600 underline print:hidden"
-          >
-            ← Enter Another Order
-          </button>
-        </div>
-      )}
-    </div> 
+        )}
+      </div>
+    </div>
   )
 }
