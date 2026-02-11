@@ -192,14 +192,29 @@ function WorkshopContent() {
           ) : (
             /* ACTIVE WORK CARD */
             <div className={`bg-white border-4 p-6 rounded-[2.5rem] shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] animate-in zoom-in duration-200 ${activeOrder.is_rush ? 'border-red-600 ring-8 ring-red-50' : 'border-black'}`}>
-              <div className="flex justify-between items-start mb-8">
-                <div>
-                  <h2 className="text-5xl font-black tracking-tighter leading-none">{activeOrder.vtiger_id}</h2>
-                  <p className="text-gray-400 font-black text-xs uppercase mt-2 tracking-widest">{activeOrder.client_name}</p>
-                </div>
-                <button onClick={() => setActiveOrder(null)} className="text-gray-300 hover:text-black transition-colors"><X size={32}/></button>
+  
+            {/* TOP HEADER */}
+            <div className="flex justify-between items-start mb-6">
+             <div>
+                <h2 className="text-5xl font-black tracking-tighter leading-none">{activeOrder.vtiger_id}</h2>
+                 <p className="text-gray-400 font-black text-xs uppercase mt-2 tracking-widest">{activeOrder.client_name}</p>
               </div>
+              <button onClick={() => setActiveOrder(null)} className="text-gray-300 hover:text-black transition-colors"><X size={32}/></button>
+            </div>
 
+             {/* NEW: THE SMART QR SECTION */}
+              <div className="flex flex-col items-center justify-center bg-gray-50 border-2 border-dashed border-gray-300 rounded-3xl p-6 mb-8">
+                 <div className="bg-white p-3 border-4 border-black rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] mb-3">
+                  <QRCodeCanvas 
+                     value={`${window.location.origin}/workshop?search=${activeOrder.vtiger_id}`} 
+                    size={160}
+                   level={"H"}
+                 />
+               </div>
+                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Scan to Sync Device</p>
+            </div>
+
+              {/* ACTIONS SECTION */}
               <div className="space-y-4 mb-4">
                 <button 
                   disabled={loading}
@@ -218,20 +233,21 @@ function WorkshopContent() {
                   </button>
                 )}
 
-                {showRejectMenu && (
-                  <div className="bg-red-50 p-6 rounded-3xl border-4 border-black animate-in slide-in-from-top-4">
-                    <p className="text-xs font-black uppercase text-red-500 mb-4 tracking-widest text-center">Select Failure Reason</p>
-                    <div className="grid gap-2">
-                      {REDO_REASONS.map(reason => (
-                        <button key={reason} onClick={() => handleMove('Goldsmithing', true, reason)} className="bg-white p-4 border-2 border-black rounded-xl font-black text-sm hover:bg-red-500 hover:text-white transition-all text-left uppercase">
-                          {reason}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
+    {/* REJECTION MENU (IF OPEN) */}
+    {showRejectMenu && (
+      <div className="bg-red-50 p-6 rounded-3xl border-4 border-black animate-in slide-in-from-top-4">
+        <p className="text-xs font-black uppercase text-red-500 mb-4 tracking-widest text-center">Select Failure Reason</p>
+        <div className="grid gap-2">
+          {REDO_REASONS.map(reason => (
+            <button key={reason} onClick={() => handleMove('Goldsmithing', true, reason)} className="bg-white p-4 border-2 border-black rounded-xl font-black text-sm hover:bg-red-500 hover:text-white transition-all text-left uppercase">
+              {reason}
+            </button>
+          ))}
+        </div>
+      </div>
+    )}
+  </div>
+</div>
           )}
         </>
       ) : (
