@@ -12,6 +12,8 @@ export default function OrderEntry() {
     client_name: '',
     ring_size: '',
     metal_type: '18k Yellow Gold',
+    due_date: '',
+    is_rush: false
   })
   const [file, setFile] = useState(null)
 
@@ -27,6 +29,12 @@ export default function OrderEntry() {
       const { data, error: uploadError } = await supabase.storage
         .from('cad-renders')
         .upload(fileName, file)
+      
+      if (uploadError) {
+        alert('Image upload failed: ' + uploadError.message)
+        setLoading(false)
+        return
+      }
       
       if (data) {
         const { data: urlData } = supabase.storage
@@ -44,7 +52,9 @@ export default function OrderEntry() {
         ring_size: formData.ring_size,
         metal_type: formData.metal_type,
         cad_url: imagePath,
-        current_stage: 'At Casting'
+        current_stage: 'At Casting',
+        due_date: formData.due_date || null,
+        is_rush: formData.is_rush
       }])
       .select()
 
@@ -59,6 +69,20 @@ export default function OrderEntry() {
   const handlePrint = () => {
     window.print()
   }
+
+  const resetForm = () => {
+    setOrder(null)
+    setFile(null)
+    setFormData({
+      vtiger_id: '',
+      client_name: '',
+      ring_size: '',
+      metal_type: '18k Yellow Gold',
+      due_date: '',
+      is_rush: false
+    })
+  }
+
   return (
     <div className="max-w-xl mx-auto p-8 bg-white min-h-screen font-sans text-gray-900">
       
@@ -125,11 +149,39 @@ export default function OrderEntry() {
             />
           </div>
 
+          <div className="flex gap-4">
+            <div className="flex-1">
+              <label className="block text-sm font-bold mb-1">Due Date</label>
+              <input 
+                type="date" 
+                className="w-full p-3 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 outline-none"
+                value={formData.due_date}
+                onChange={e => setFormData({...formData, due_date: e.target.value})}
+              />
+            </div>
+            <div className="flex items-center gap-2 pt-6">
+              <input 
+                type="checkbox" 
+                className="w-5 h-5 rounded border-gray-300 focus:ring-2 focus:ring-blue-500"
+                checked={formData.is_rush}
+                onChange={e => setFormData({...formData, is_rush: e.target.checked})}
+              />
+              <label className="font-bold text-red-600 uppercase text-sm">Rush Order</label>
+            </div>
+          </div>
+
           <button 
             disabled={loading}
-            className="w-full bg-blue-600 text-white p-4 rounded-lg hover:bg-blue-700 font-bold flex justify-center items-center transition-colors"
+            className="w-full bg-blue-600 text-white p-4 rounded-lg hover:bg-blue-700 font-bold flex justify-center items-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {loading ? <Loader2 className="animate-spin mr-2" /> : 'Create Job Ticket'}
+            {loading ? (
+              <>
+                <Loader2 className="animate-spin mr-2" size={20} />
+                {file ? 'Uploading Image & Creating Order...' : 'Creating Order...'}
+              </>
+            ) : (
+              'Create Job Ticket'
+            )}
           </button>
         </form>
       )}
@@ -167,9 +219,29 @@ export default function OrderEntry() {
               </div>
               <div className="bg-gray-100 p-3 rounded">
                 <span className="block text-xs text-gray-500 uppercase font-bold">Ring Size</span>
-                <span className="font-bold text-xl block leading-tight">{order.ring_size}</span>
+                <span className="font-bold text-xl block leading-tight">{order.ring_size || 'N/A'}</span>
               </div>
             </div>
+
+            {order.due_date && (
+              <div className="bg-blue-50 border-2 border-blue-300 p-3 rounded-lg mb-4">
+                <span className="block text-xs text-blue-600 uppercase font-bold">Due Date</span>
+                <span className="font-bold text-lg block leading-tight text-blue-900">
+                  {new Date(order.due_date).toLocaleDateString('en-US', { 
+                    weekday: 'short', 
+                    year: 'numeric', 
+                    month: 'short', 
+                    day: 'numeric' 
+                  })}
+                </span>
+              </div>
+            )}
+
+            {order.is_rush && (
+              <div className="bg-red-100 border-4 border-red-600 p-4 rounded-lg mb-4">
+                <span className="font-black text-2xl text-red-600 uppercase tracking-wider">⚠️ RUSH ORDER</span>
+              </div>
+            )}
 
             {order.cad_url && (
               <div className="mt-6 border-2 border-gray-200 rounded-lg overflow-hidden bg-gray-50">
@@ -182,15 +254,15 @@ export default function OrderEntry() {
                <p className="text-xs text-center text-gray-400 font-mono uppercase">Internal Production Ticket • Atelier Use Only</p>
             </div>
           </div>
-          
+
           <button 
-            onClick={() => {setOrder(null); setFile(null);}} 
+            onClick={resetForm} 
             className="mt-12 text-gray-400 hover:text-gray-600 underline print:hidden"
           >
             ← Enter Another Order
           </button>
         </div>
       )}
-    </div>
+    </div> 
   )
 }
