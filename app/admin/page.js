@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import {
   History, ArrowRight, Clock, Factory, Hammer, Gem, Sparkles,
@@ -19,7 +19,16 @@ function debounce(func, wait) {
   }
 }
 
-// ---------- 1. TIME BREAKDOWN COMPONENT ----------
+// ---------- UPDATED TIME FORMATTER ----------
+const formatDuration = (seconds) => {
+  if (!seconds || seconds <= 0) return '0m'
+  if (seconds < 60) return '<1m'
+  const hrs = Math.floor(seconds / 3600)
+  const mins = Math.floor((seconds % 3600) / 60)
+  return hrs > 0 ? `${hrs}h ${mins}m` : `${mins}m`
+}
+
+// ---------- 1. ENHANCED TIME BREAKDOWN COMPONENT (MODAL) ----------
 const TimeBreakdown = ({ orderId }) => {
   const [logs, setLogs] = useState([])
   const [loading, setLoading] = useState(true)
@@ -37,28 +46,45 @@ const TimeBreakdown = ({ orderId }) => {
     fetchLogs()
   }, [orderId])
 
-  if (loading) return <div className="text-[10px] text-gray-400 font-black uppercase mt-4">Loading logs...</div>
+  // Aggregate totals for the summary
+  const summary = logs.reduce((acc, log) => {
+    const stage = log.previous_stage || 'Unknown'
+    acc[stage] = (acc[stage] || 0) + (log.duration_seconds || 0)
+    return acc
+  }, {})
+
+  if (loading) return <div className="animate-pulse text-[10px] font-black uppercase text-gray-400 mt-4">Calculating...</div>
 
   return (
-    <div className="mt-6 border-t-4 border-black pt-4">
-      <h4 className="font-black text-[10px] mb-3 uppercase text-gray-400 tracking-widest">Stage Time Logs</h4>
-      <div className="space-y-2">
-        {logs.length === 0 ? (
-          <p className="text-[10px] text-gray-400 font-bold uppercase">No stage logs found.</p>
-        ) : (
-          logs.map((log, i) => (
-            <div key={i} className="flex justify-between items-center text-xs py-2 border-b-2 border-gray-100 last:border-0">
-              <span className="font-bold uppercase text-black">
-                {log.action === 'REJECTED' ? '⚠️ REDO: ' : ''}
-                {log.previous_stage || log.new_stage}
-                <span className="text-gray-400 font-black ml-1">({log.staff_name})</span>
+    <div className="mt-6 space-y-6">
+      {/* Summary Totals */}
+      <div className="grid grid-cols-3 gap-2">
+        {['Goldsmithing', 'Setting', 'Polishing'].map(s => (
+          <div key={s} className="bg-gray-50 border-2 border-black p-2 rounded-xl text-center">
+            <p className="text-[8px] font-black uppercase text-gray-400">{s}</p>
+            <p className="text-xs font-black">{formatDuration(summary[s] || 0)}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Chronological History */}
+      <div className="border-t-4 border-black pt-4">
+        <h4 className="font-black text-[10px] mb-3 uppercase text-gray-400 tracking-widest flex items-center gap-2">
+          <History size={12}/> Detailed Log
+        </h4>
+        <div className="space-y-2 max-h-40 overflow-y-auto pr-2">
+          {logs.map((log, i) => (
+            <div key={i} className="flex justify-between items-center text-[11px] py-2 border-b-2 border-gray-100 last:border-0">
+              <span className="font-bold uppercase">
+                {log.action === 'REJECTED' && <span className="text-red-600">REDO: </span>}
+                {log.previous_stage} <span className="text-gray-400">by</span> {log.staff_name}
               </span>
-              <span className="font-mono font-black text-blue-600 bg-blue-50 px-2 py-1 rounded-md">
-                {log.duration_seconds ? Math.floor(log.duration_seconds / 60) : 0}m
+              <span className="font-mono font-black bg-blue-50 px-2 py-0.5 rounded text-blue-700">
+                {formatDuration(log.duration_seconds)}
               </span>
             </div>
-          ))
-        )}
+          ))}
+        </div>
       </div>
     </div>
   )
@@ -78,14 +104,13 @@ export default function AdminPage() {
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [error, setError] = useState(null)
 
-  // --- Debounced search handlers (custom debounce) ---
+  // Debounced search handlers
   const debouncedSetSearchTerm = useMemo(() => debounce(setSearchTerm, 300), [])
   const debouncedSetLogSearchTerm = useMemo(() => debounce(setLogSearchTerm, 300), [])
 
-  // Cleanup debounce on unmount
   useEffect(() => {
     return () => {
-      debouncedSetSearchTerm.cancel?.() // our debounce doesn't have .cancel, but we can add; for safety we just let it be
+      debouncedSetSearchTerm.cancel?.()
       debouncedSetLogSearchTerm.cancel?.()
     }
   }, [debouncedSetSearchTerm, debouncedSetLogSearchTerm])
@@ -101,31 +126,25 @@ export default function AdminPage() {
 
     try {
       if (activeTab === 'live') {
-        // Live board: orders not completed
         const { data: live, error: liveError } = await supabase
           .from('orders')
           .select('*')
           .neq('current_stage', 'Completed')
           .order('created_at', { ascending: true })
         
-        if (liveError) {
-          throw new Error(liveError.message || 'Live board query failed')
-        }
+        if (liveError) throw new Error(liveError.message || 'Live board query failed')
         setWipJobs(live || [])
 
-        // Recent activity logs (fixed duplicate limit)
         const { data: logData, error: logError } = await supabase
           .from('production_logs')
           .select('*, orders(vtiger_id)')
           .order('created_at', { ascending: false })
           .limit(50)
         
-        if (logError) {
-          throw new Error(logError.message || 'Activity log query failed')
-        }
+        if (logError) throw new Error(logError.message || 'Activity log query failed')
         setLogs(logData || [])
+        
       } else {
-        // Archive: completed orders – case‑insensitive, trimmed match
         const { data: done, error: doneError } = await supabase
           .from('orders')
           .select('*')
@@ -133,15 +152,11 @@ export default function AdminPage() {
           .order('updated_at', { ascending: false })
           .limit(100)
         
-        if (doneError) {
-          throw new Error(doneError.message || 'Archive query failed')
-        }
+        if (doneError) throw new Error(doneError.message || 'Archive query failed')
 
         setCompletedJobs(done || [])
         if (done && done.length > 0) {
           await fetchStageTimes(done.map(j => j.id))
-        } else {
-          console.warn('No completed orders found – check your data or stage name')
         }
       }
     } catch (err) {
@@ -154,31 +169,44 @@ export default function AdminPage() {
     }
   }
 
-  // --- IMPROVED STAGE DURATION CALCULATION ---
+  // --- IMPROVED STAGE DURATION CALCULATION (dynamic + total) ---
   async function fetchStageTimes(orderIds) {
-    if (orderIds.length === 0) return
-    const { data: logsData, error } = await supabase
-      .from('production_logs')
-      .select('order_id, previous_stage, duration_seconds')
-      .in('order_id', orderIds)
+    if (!orderIds || orderIds.length === 0) return
 
-    if (error) {
-      console.error('Error fetching stage durations:', error.message)
-      return
+    try {
+      const { data: logsData, error } = await supabase
+        .from('production_logs')
+        .select('order_id, previous_stage, duration_seconds')
+        .in('order_id', orderIds)
+
+      if (error) {
+        console.error('Error fetching stage durations:', error.message)
+        return
+      }
+
+      // Build dynamic durations object, including a total
+      const durations = {}
+      logsData?.forEach(log => {
+        const id = log.order_id
+        if (!durations[id]) durations[id] = { Goldsmithing: 0, Setting: 0, Polishing: 0, Total: 0 }
+        const stage = log.previous_stage
+        const secs = Number(log.duration_seconds) || 0
+
+        // Only add to the columns we render in the table
+        if (stage === 'Goldsmithing') durations[id].Goldsmithing += secs
+        if (stage === 'Setting') durations[id].Setting += secs
+        if (stage === 'Polishing' || stage === 'QC') durations[id].Polishing += secs
+
+        durations[id].Total += secs
+      })
+
+      setStageDurations(durations)
+    } catch (err) {
+      console.error('Critical error in fetchStageTimes:', err)
     }
-
-    // Use reduce to dynamically accumulate durations per stage
-    const durations = logsData?.reduce((acc, log) => {
-      const { order_id, previous_stage, duration_seconds } = log
-      if (!acc[order_id]) acc[order_id] = {}
-      acc[order_id][previous_stage] = (acc[order_id][previous_stage] || 0) + (duration_seconds || 0)
-      return acc
-    }, {})
-
-    setStageDurations(durations || {})
   }
 
-  // --- MEMOIZED STAGE FILTERING FOR LIVE BOARD ---
+  // Memoized stage filtering for live board
   const stagesMap = useMemo(() => ({
     Casting: wipJobs.filter(j => j.current_stage === 'At Casting'),
     Goldsmithing: wipJobs.filter(j => j.current_stage === 'Goldsmithing'),
@@ -186,7 +214,7 @@ export default function AdminPage() {
     Polishing: wipJobs.filter(j => ['Polishing', 'QC'].includes(j.current_stage))
   }), [wipJobs])
 
-  // --- CLIENT-SIDE SEARCH FOR ARCHIVE ---
+  // Client-side search for archive
   const filteredArchive = useMemo(() => {
     const term = searchTerm.trim().toUpperCase()
     if (!term) return completedJobs
@@ -197,7 +225,7 @@ export default function AdminPage() {
     })
   }, [completedJobs, searchTerm])
 
-  // --- CLIENT-SIDE SEARCH FOR ACTIVITY LOGS ---
+  // Client-side search for activity logs
   const filteredLogs = useMemo(() => {
     const term = logSearchTerm.trim().toLowerCase()
     if (!term) return logs
@@ -210,23 +238,15 @@ export default function AdminPage() {
     })
   }, [logs, logSearchTerm])
 
-  // --- TIME FORMATTERS ---
-  const formatDurationPrecise = (seconds) => {
-    if (!seconds || seconds <= 0 || isNaN(seconds)) return '0m'
-    const hrs = Math.floor(seconds / 3600)
-    const mins = Math.floor((seconds % 3600) / 60)
-    if (hrs > 0) return `${hrs}h ${mins}m`
-    return `${mins}m`
-  }
-
+  // Total time from order dates (used in archive)
   const calculateTotalTime = (start, end) => {
     if (!start || !end) return '---'
     const diffMs = new Date(end).getTime() - new Date(start).getTime()
     const totalSecs = Math.floor(diffMs / 1000)
-    return formatDurationPrecise(totalSecs)
+    return formatDuration(totalSecs)
   }
 
-  // --- KANBAN COLUMN RENDERER ---
+  // Kanban column renderer (unchanged)
   const renderColumn = (title, icon, jobs, color) => (
     <div className={`${color.bg} border-4 ${color.border} rounded-[2rem] p-5 shadow-[6px_6px_0px_0px_black]`}>
       <div className={`flex items-center gap-2 ${color.text} mb-4 border-b-4 ${color.accent} pb-3 font-black uppercase text-xs tracking-tighter`}>
@@ -255,7 +275,7 @@ export default function AdminPage() {
   return (
     <div className="max-w-[90rem] mx-auto p-6 space-y-8 pb-20 relative font-sans">
 
-      {/* JOB DETAIL MODAL */}
+      {/* JOB DETAIL MODAL (now uses enhanced TimeBreakdown) */}
       {hoveredOrder && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
           <div className="bg-white border-[6px] border-black p-8 rounded-[3rem] shadow-[20px_20px_0px_0px_rgba(0,0,0,1)] w-full max-w-lg animate-in zoom-in duration-150">
@@ -288,7 +308,7 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* TABS & HEADER */}
+      {/* TABS & HEADER (unchanged) */}
       <div className="flex flex-col md:flex-row md:items-center justify-between border-b-8 border-black pb-6 gap-4">
         <h1 className="text-4xl md:text-5xl font-black uppercase tracking-tighter">Atelier OS</h1>
         <div className="flex bg-black p-1.5 rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,0.2)]">
@@ -315,7 +335,7 @@ export default function AdminPage() {
       )}
 
       {activeTab === 'live' ? (
-        // --- LIVE BOARD VIEW ---
+        // --- LIVE BOARD VIEW (unchanged) ---
         <div className="space-y-12 animate-in fade-in duration-500">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {renderColumn('Casting', <Factory size={18} />, stagesMap.Casting, { bg: 'bg-blue-50', border: 'border-blue-600', text: 'text-blue-700', accent: 'border-blue-200' })}
@@ -324,7 +344,7 @@ export default function AdminPage() {
             {renderColumn('Polishing', <Sparkles size={18} />, stagesMap.Polishing, { bg: 'bg-emerald-50', border: 'border-emerald-500', text: 'text-emerald-700', accent: 'border-emerald-200' })}
           </div>
 
-          {/* ACTIVITY LOG with debounced search */}
+          {/* ACTIVITY LOG with debounced search (unchanged) */}
           <div className="bg-white border-4 border-black p-8 rounded-[2.5rem] shadow-[8px_8px_0px_0px_black]">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
               <h2 className="font-black uppercase flex items-center gap-3 text-xl tracking-tighter">
@@ -336,7 +356,6 @@ export default function AdminPage() {
                   type="text"
                   placeholder="Filter logs..."
                   className="w-full pl-10 pr-4 py-2 border-2 border-black rounded-xl text-xs font-black outline-none uppercase shadow-[2px_2px_0px_0px_black] focus:translate-x-0.5 focus:translate-y-0.5 focus:shadow-none transition-all"
-                  value={logSearchTerm}
                   onChange={(e) => debouncedSetLogSearchTerm(e.target.value)}
                 />
               </div>
@@ -363,7 +382,7 @@ export default function AdminPage() {
           </div>
         </div>
       ) : (
-        // --- COMPLETIONS ARCHIVE VIEW with debounced search ---
+        // --- COMPLETIONS ARCHIVE VIEW (uses improved durations) ---
         <div className="bg-white border-4 border-black rounded-[3rem] overflow-hidden shadow-[12px_12px_0px_0px_black] animate-in slide-in-from-bottom-4 duration-500">
           <div className="p-8 bg-gray-50 border-b-4 border-black flex flex-col sm:flex-row justify-between items-center gap-6">
             <div>
@@ -379,7 +398,6 @@ export default function AdminPage() {
                   type="text"
                   placeholder="SEARCH ID OR MODEL..."
                   className="w-full pl-12 pr-4 py-4 border-4 border-black rounded-2xl text-sm font-black outline-none uppercase shadow-[4px_4px_0px_0px_black] focus:translate-x-1 focus:translate-y-1 focus:shadow-none transition-all"
-                  value={searchTerm}
                   onChange={(e) => debouncedSetSearchTerm(e.target.value)}
                 />
               </div>
@@ -403,7 +421,6 @@ export default function AdminPage() {
             ) : completedJobs.length === 0 ? (
               <div className="p-20 text-center">
                 <p className="font-black uppercase text-gray-400 text-lg">No completed orders found</p>
-                <p className="text-sm text-gray-400 mt-2">Check that orders have a stage exactly matching "Completed" (case‑insensitive) and that you have permission to read them.</p>
               </div>
             ) : filteredArchive.length === 0 ? (
               <div className="p-20 text-center">
@@ -424,7 +441,7 @@ export default function AdminPage() {
                 </thead>
                 <tbody className="divide-y-4 divide-gray-100">
                   {filteredArchive.map(job => {
-                    const durations = stageDurations[job.id] || {} // now dynamic
+                    const durations = stageDurations[job.id] || { Goldsmithing: 0, Setting: 0, Polishing: 0, Total: 0 }
                     return (
                       <tr
                         key={job.id}
@@ -444,9 +461,9 @@ export default function AdminPage() {
                             </span>
                           </div>
                         </td>
-                        <td className="p-6 text-sm font-black text-gray-500">{formatDurationPrecise(durations.Goldsmithing)}</td>
-                        <td className="p-6 text-sm font-black text-gray-500">{formatDurationPrecise(durations.Setting)}</td>
-                        <td className="p-6 text-sm font-black text-gray-500">{formatDurationPrecise(durations.Polishing)}</td>
+                        <td className="p-6 text-sm font-black text-gray-500">{formatDuration(durations.Goldsmithing)}</td>
+                        <td className="p-6 text-sm font-black text-gray-500">{formatDuration(durations.Setting)}</td>
+                        <td className="p-6 text-sm font-black text-gray-500">{formatDuration(durations.Polishing)}</td>
                         <td className="p-6 text-right text-xs font-black text-gray-400 uppercase tracking-wider">
                           {new Date(job.updated_at).toLocaleDateString(undefined, { month: 'short', day: '2-digit', year: 'numeric' })}
                         </td>
