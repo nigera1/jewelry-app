@@ -1,11 +1,12 @@
 'use client'
-import { useState, useEffect, Suspense } from 'react'
+import { useState, useEffect, Suspense, useRef } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
 import { QRCodeCanvas } from 'qrcode.react'
+import { Html5Qrcode } from 'html5-qrcode'
 import {
   Search, User, X, CheckCircle, Flame,
-  Loader2, Gem, Layers, List, ScanLine, Package, Printer
+  Loader2, Gem, Layers, List, ScanLine, Package, Printer, Camera, Keyboard
 } from 'lucide-react'
 
 const STAGES = ['At Casting', 'Goldsmithing', 'Setting', 'Polishing', 'QC', 'Completed']
@@ -25,9 +26,66 @@ function WorkshopContent() {
   const [activeJobs, setActiveJobs] = useState([])
   const [scanMessage, setScanMessage] = useState(null)
 
+  // Camera scanner states (plain JS, no types)
+  const [scanMode, setScanMode] = useState('manual')
+  const [cameraInitialized, setCameraInitialized] = useState(false)
+  const [cameraError, setCameraError] = useState(null)
+  const scannerRef = useRef(null)
+  const scannerContainerId = 'qr-reader'
+
   useEffect(() => {
     fetchActiveJobs()
   }, [])
+
+  // Cleanup camera on unmount or when switching away from camera mode
+  useEffect(() => {
+    if (activeTab !== 'scanner' || scanMode !== 'camera') {
+      stopCamera()
+    } else if (activeTab === 'scanner' && scanMode === 'camera' && !cameraInitialized) {
+      startCamera()
+    }
+  }, [activeTab, scanMode])
+
+  const stopCamera = async () => {
+    if (scannerRef.current) {
+      try {
+        await scannerRef.current.stop()
+        scannerRef.current.clear()
+      } catch (err) {
+        console.error('Error stopping camera', err)
+      }
+      scannerRef.current = null
+      setCameraInitialized(false)
+    }
+  }
+
+  const startCamera = async () => {
+    if (!scannerRef.current) {
+      scannerRef.current = new Html5Qrcode(scannerContainerId)
+    }
+    const qrCodeSuccessCallback = (decodedText) => {
+      // Process the scanned ID
+      processOrderId(decodedText.trim().toUpperCase())
+      // Optional: beep or vibrate
+      if (navigator.vibrate) navigator.vibrate(200)
+    }
+    const config = { fps: 10, qrbox: { width: 250, height: 250 } }
+
+    try {
+      await scannerRef.current.start(
+        { facingMode: 'environment' }, // Use back camera
+        config,
+        qrCodeSuccessCallback,
+        undefined
+      )
+      setCameraInitialized(true)
+      setCameraError(null)
+    } catch (err) {
+      console.error('Camera start error', err)
+      setCameraError('Could not access camera. Please check permissions.')
+      setCameraInitialized(false)
+    }
+  }
 
   const fetchActiveJobs = async () => {
     const { data } = await supabase
@@ -38,8 +96,8 @@ function WorkshopContent() {
     if (data) setActiveJobs(data)
   }
 
-  const handleScan = async () => {
-    const cleanId = searchId.toUpperCase().trim()
+  // Core logic to process a scanned/typed order ID
+  const processOrderId = async (cleanId) => {
     if (!cleanId) return
     setLoading(true)
 
@@ -60,6 +118,7 @@ function WorkshopContent() {
     const now = new Date()
 
     if (!order.timer_started_at) {
+      // START THE JOB
       await supabase
         .from('orders')
         .update({ timer_started_at: now.toISOString() })
@@ -77,6 +136,7 @@ function WorkshopContent() {
         text: `▶️ STARTED: ${order.vtiger_id} at ${order.current_stage}`
       })
     } else {
+      // COMPLETE THE JOB
       const start = new Date(order.timer_started_at)
       const durationSeconds = Math.floor((now - start) / 1000) + (order.timer_accumulated || 0)
 
@@ -112,6 +172,10 @@ function WorkshopContent() {
     setSearchId('')
     setLoading(false)
     setTimeout(() => setScanMessage(null), 4000)
+  }
+
+  const handleScan = () => {
+    processOrderId(searchId.toUpperCase().trim())
   }
 
   const handleManualMove = async (isRejection = false, reason = null) => {
@@ -293,29 +357,90 @@ function WorkshopContent() {
         <div className="animate-in fade-in duration-500">
           {activeTab === 'scanner' && (
             <div className="space-y-4">
-              <div className="flex gap-2 relative">
-                <input
-                  autoFocus
-                  type="text"
-                  placeholder="SCAN JOB BARCODE..."
-                  className="w-full p-6 border-4 border-black rounded-2xl font-black text-xl uppercase shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] outline-none focus:bg-blue-50"
-                  value={searchId}
-                  onChange={(e) => setSearchId(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleScan()}
-                />
+              {/* Mode toggle */}
+              <div className="flex gap-2 mb-4">
                 <button
-                  onClick={handleScan}
-                  disabled={loading}
-                  className="bg-black text-white px-8 rounded-2xl border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:shadow-none active:translate-y-1 transition-all"
+                  onClick={() => setScanMode('manual')}
+                  className={`flex-1 py-2 rounded-xl border-2 font-black text-xs flex items-center justify-center gap-1 ${
+                    scanMode === 'manual'
+                      ? 'bg-black text-white border-black'
+                      : 'bg-white text-gray-400 border-gray-300'
+                  }`}
                 >
-                  {loading ? <Loader2 className="animate-spin" /> : <Search />}
+                  <Keyboard size={14} /> MANUAL
+                </button>
+                <button
+                  onClick={() => setScanMode('camera')}
+                  className={`flex-1 py-2 rounded-xl border-2 font-black text-xs flex items-center justify-center gap-1 ${
+                    scanMode === 'camera'
+                      ? 'bg-black text-white border-black'
+                      : 'bg-white text-gray-400 border-gray-300'
+                  }`}
+                >
+                  <Camera size={14} /> CAMERA
                 </button>
               </div>
-              <div className="text-center mt-8">
-                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
-                  Scan 1x to Start Stage <br /> Scan 2x to Complete Stage
-                </p>
-              </div>
+
+              {scanMode === 'manual' && (
+                <>
+                  <div className="flex gap-2 relative">
+                    <input
+                      autoFocus
+                      type="text"
+                      placeholder="SCAN JOB BARCODE..."
+                      className="w-full p-6 border-4 border-black rounded-2xl font-black text-xl uppercase shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] outline-none focus:bg-blue-50"
+                      value={searchId}
+                      onChange={(e) => setSearchId(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && handleScan()}
+                    />
+                    <button
+                      onClick={handleScan}
+                      disabled={loading}
+                      className="bg-black text-white px-8 rounded-2xl border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:shadow-none active:translate-y-1 transition-all"
+                    >
+                      {loading ? <Loader2 className="animate-spin" /> : <Search />}
+                    </button>
+                  </div>
+                  <div className="text-center mt-8">
+                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                      Scan 1x to Start Stage <br /> Scan 2x to Complete Stage
+                    </p>
+                  </div>
+                </>
+              )}
+
+              {scanMode === 'camera' && (
+                <div className="space-y-4">
+                  <div
+                    id={scannerContainerId}
+                    className="w-full aspect-video bg-black rounded-2xl overflow-hidden border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]"
+                  />
+                  {cameraError && (
+                    <div className="p-4 bg-red-100 border-2 border-red-600 rounded-xl font-black text-xs text-red-800">
+                      {cameraError}
+                    </div>
+                  )}
+                  {!cameraError && !cameraInitialized && (
+                    <div className="text-center p-4 bg-yellow-100 border-2 border-yellow-600 rounded-xl font-black text-xs">
+                      Initializing camera...
+                    </div>
+                  )}
+                  {cameraInitialized && (
+                    <div className="text-center text-[10px] font-black text-green-600">
+                      Camera active – point at a QR code
+                    </div>
+                  )}
+                  <button
+                    onClick={() => {
+                      stopCamera()
+                      setScanMode('manual')
+                    }}
+                    className="w-full bg-gray-200 p-3 rounded-xl font-black text-xs border-2 border-black"
+                  >
+                    STOP CAMERA
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
