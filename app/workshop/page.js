@@ -1,11 +1,11 @@
 'use client'
-import { useState, useEffect, Suspense, useRef } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
-import { 
-  Search, User, X, CheckCircle, 
-  Loader2, Gem, Layers, List, ScanLine, Package,
-  Play, Pause, RotateCcw
+import { QRCodeCanvas } from 'qrcode.react'
+import {
+  Search, User, X, CheckCircle, Flame,
+  Loader2, Gem, Layers, List, ScanLine, Package, Printer
 } from 'lucide-react'
 
 const STAGES = ['At Casting', 'Goldsmithing', 'Setting', 'Polishing', 'QC', 'Completed']
@@ -15,7 +15,7 @@ const REDO_REASONS = ['Loose Stone', 'Polishing Issue', 'Sizing Error', 'Metal F
 function WorkshopContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
-  
+
   const [activeTab, setActiveTab] = useState('scanner')
   const [searchId, setSearchId] = useState('')
   const [activeOrder, setActiveOrder] = useState(null)
@@ -23,57 +23,11 @@ function WorkshopContent() {
   const [loading, setLoading] = useState(false)
   const [showRejectMenu, setShowRejectMenu] = useState(false)
   const [activeJobs, setActiveJobs] = useState([])
+  const [scanMessage, setScanMessage] = useState(null)
 
-  // --- Timer state ---
-  const [elapsedSeconds, setElapsedSeconds] = useState(0)
-  const [accumulated, setAccumulated] = useState(0)
-  const [startedAt, setStartedAt] = useState(null) 
-  const [isTimerRunning, setIsTimerRunning] = useState(false)
-  const [timerLoading, setTimerLoading] = useState(false)
-  const timerIntervalRef = useRef(null)
-
-  // --- Fetch active jobs on mount ---
   useEffect(() => {
     fetchActiveJobs()
   }, [])
-
-  // --- Timer interval: recalc elapsed every second when running ---
-  useEffect(() => {
-    if (isTimerRunning && startedAt) {
-      timerIntervalRef.current = setInterval(() => {
-        const now = Date.now()
-        const diffSeconds = (now - startedAt.getTime()) / 1000
-        setElapsedSeconds(accumulated + diffSeconds)
-      }, 1000)
-    } else {
-      clearInterval(timerIntervalRef.current)
-    }
-    return () => clearInterval(timerIntervalRef.current)
-  }, [isTimerRunning, startedAt, accumulated])
-
-  // --- Load timer state from activeOrder ---
-  useEffect(() => {
-    if (activeOrder) {
-      const acc = activeOrder.timer_accumulated || 0
-      const start = activeOrder.timer_started_at ? new Date(activeOrder.timer_started_at) : null
-      setAccumulated(acc)
-      setStartedAt(start)
-      setIsTimerRunning(!!start)
-
-      if (start) {
-        const diff = (Date.now() - start.getTime()) / 1000
-        setElapsedSeconds(acc + diff)
-      } else {
-        setElapsedSeconds(acc)
-      }
-    } else {
-      // Reset timer when order is closed
-      setElapsedSeconds(0)
-      setAccumulated(0)
-      setStartedAt(null)
-      setIsTimerRunning(false)
-    }
-  }, [activeOrder])
 
   const fetchActiveJobs = async () => {
     const { data } = await supabase
@@ -84,22 +38,131 @@ function WorkshopContent() {
     if (data) setActiveJobs(data)
   }
 
-  const findOrder = async (idToSearch = searchId) => {
-    const cleanId = idToSearch.toUpperCase().trim()
+  const handleScan = async () => {
+    const cleanId = searchId.toUpperCase().trim()
     if (!cleanId) return
     setLoading(true)
-    
-    const { data } = await supabase
+
+    const { data: order, error } = await supabase
       .from('orders')
       .select('*')
       .eq('vtiger_id', cleanId)
       .single()
 
-    if (data) {
-      setActiveOrder(data)
+    if (!order || error) {
+      setScanMessage({ type: 'error', text: `Order ${cleanId} not found!` })
       setSearchId('')
+      setLoading(false)
+      setTimeout(() => setScanMessage(null), 3000)
+      return
+    }
+
+    const now = new Date()
+
+    if (!order.timer_started_at) {
+      await supabase
+        .from('orders')
+        .update({ timer_started_at: now.toISOString() })
+        .eq('id', order.id)
+
+      await supabase.from('production_logs').insert([{
+        order_id: order.id,
+        staff_name: staffName,
+        action: 'STARTED',
+        new_stage: order.current_stage
+      }])
+
+      setScanMessage({
+        type: 'start',
+        text: `▶️ STARTED: ${order.vtiger_id} at ${order.current_stage}`
+      })
     } else {
-      alert("Order not found!")
+      const start = new Date(order.timer_started_at)
+      const durationSeconds = Math.floor((now - start) / 1000) + (order.timer_accumulated || 0)
+
+      const currentIndex = STAGES.indexOf(order.current_stage)
+      const nextStage = STAGES[currentIndex + 1] || 'Completed'
+
+      await supabase
+        .from('orders')
+        .update({
+          current_stage: nextStage,
+          timer_started_at: null,
+          timer_accumulated: 0,
+          updated_at: now.toISOString()
+        })
+        .eq('id', order.id)
+
+      await supabase.from('production_logs').insert([{
+        order_id: order.id,
+        staff_name: staffName,
+        action: 'COMPLETED',
+        previous_stage: order.current_stage,
+        new_stage: nextStage,
+        duration_seconds: durationSeconds
+      }])
+
+      setScanMessage({
+        type: 'success',
+        text: `✅ COMPLETED: ${order.vtiger_id}. Moved to ${nextStage}`
+      })
+    }
+
+    fetchActiveJobs()
+    setSearchId('')
+    setLoading(false)
+    setTimeout(() => setScanMessage(null), 4000)
+  }
+
+  const handleManualMove = async (isRejection = false, reason = null) => {
+    if (!activeOrder) return
+    setLoading(true)
+
+    // Validate stage
+    const currentIndex = STAGES.indexOf(activeOrder.current_stage)
+    if (currentIndex === -1) {
+      setScanMessage({ type: 'error', text: `Unknown stage: ${activeOrder.current_stage}` })
+      setLoading(false)
+      setTimeout(() => setScanMessage(null), 4000)
+      return
+    }
+
+    let durationSeconds = activeOrder.timer_accumulated || 0
+    if (activeOrder.timer_started_at) {
+      durationSeconds += Math.floor((new Date() - new Date(activeOrder.timer_started_at)) / 1000)
+    }
+
+    const nextStage = isRejection ? 'Goldsmithing' : STAGES[currentIndex + 1] || 'Completed'
+
+    const { error } = await supabase
+      .from('orders')
+      .update({
+        current_stage: nextStage,
+        timer_started_at: null,
+        timer_accumulated: 0,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', activeOrder.id)
+
+    if (!error) {
+      await supabase.from('production_logs').insert([{
+        order_id: activeOrder.id,
+        staff_name: staffName,
+        action: isRejection ? 'REJECTED' : 'COMPLETED',
+        previous_stage: activeOrder.current_stage,
+        new_stage: nextStage,
+        redo_reason: reason,
+        duration_seconds: durationSeconds
+      }])
+
+      setActiveOrder(null)
+      setShowRejectMenu(false)
+      fetchActiveJobs()
+      setScanMessage({ type: 'success', text: `✅ Moved to ${nextStage}` })
+      setTimeout(() => setScanMessage(null), 3000)
+    } else {
+      setScanMessage({ type: 'error', text: `Failed: ${error.message}` })
+      setTimeout(() => setScanMessage(null), 4000)
     }
     setLoading(false)
   }
@@ -108,130 +171,50 @@ function WorkshopContent() {
     if (!activeOrder) return
     const newValue = !currentValue
     setActiveOrder({ ...activeOrder, [field]: newValue })
-    
-    const { error } = await supabase
-      .from('orders')
-      .update({ [field]: newValue })
-      .eq('id', activeOrder.id)
-
-    if (error) {
-      alert(`Error updating stone: ${error.message}`)
-      setActiveOrder({ ...activeOrder, [field]: currentValue })
-    }
+    await supabase.from('orders').update({ [field]: newValue }).eq('id', activeOrder.id)
   }
 
-  // --- Persist timer state to database ---
-  const saveTimerToDB = async (newAccumulated, newStartedAt) => {
-    if (!activeOrder) return
-    setTimerLoading(true)
-    const updates = {
-      timer_accumulated: Math.floor(newAccumulated),
-      timer_started_at: newStartedAt
-    }
-    const { error } = await supabase
-      .from('orders')
-      .update(updates)
-      .eq('id', activeOrder.id)
-    if (error) console.error('Timer save error:', error.message)
-    setTimerLoading(false)
-  }
-
-  // --- Timer controls ---
-  const startTimer = async () => {
-    if (!activeOrder) return
-    const now = new Date()
-    setStartedAt(now)
-    setIsTimerRunning(true)
-    // Keep accumulated unchanged, set started_at in DB
-    await saveTimerToDB(accumulated, now.toISOString())
-  }
-
-  const pauseTimer = async () => {
-    if (!activeOrder || !startedAt) return
-    setIsTimerRunning(false)
-    const now = Date.now()
-    const additional = (now - startedAt.getTime()) / 1000
-    const newAccumulated = accumulated + additional
-    setAccumulated(newAccumulated)
-    setElapsedSeconds(newAccumulated)
-    setStartedAt(null)
-    await saveTimerToDB(newAccumulated, null)
-  }
-
-  const resetTimer = async () => {
-    setIsTimerRunning(false)
-    setAccumulated(0)
-    setElapsedSeconds(0)
-    setStartedAt(null)
-    await saveTimerToDB(0, null)
-  }
-
-  // --- Updated handleMove with timer integration ---
-  const handleMove = async (isRejection = false, reason = null) => {
-    if (!activeOrder) return
-    setLoading(true)
-
-    // 1. Capture final duration for current stage
-    // If timer running, pause it conceptually to get total
-    let finalDuration = accumulated
-    if (isTimerRunning && startedAt) {
-      finalDuration += (Date.now() - startedAt.getTime()) / 1000
-    }
-    const finalStageDuration = Math.floor(finalDuration)
-
-    // 2. Pause/Reset logic handled by updating the order with new stage & clearing timer fields
-    const currentIndex = STAGES.indexOf(activeOrder.current_stage)
-    const nextStage = isRejection ? 'Goldsmithing' : STAGES[currentIndex + 1] || 'Completed'
-
-    const { error } = await supabase
-      .from('orders')
-      .update({ 
-        current_stage: nextStage,
-        timer_accumulated: 0, // Reset for next stage
-        timer_started_at: null // Reset for next stage
-      })
-      .eq('id', activeOrder.id)
-    
-    if (!error) {
-      // 3. Log the completed stage duration
-      await supabase.from('production_logs').insert([{
-        order_id: activeOrder.id,
-        staff_name: staffName,
-        previous_stage: activeOrder.current_stage,
-        new_stage: nextStage,
-        redo_reason: reason,
-        duration_seconds: finalStageDuration,
-        action: isRejection ? 'REJECTED' : 'COMPLETED'
-      }])
-      
-      setActiveOrder(null)
-      setShowRejectMenu(false)
-      fetchActiveJobs()
-    }
-    setLoading(false)
-  }
-
-  const closeOrder = async () => {
-    if (activeOrder) {
-      if (isTimerRunning) {
-        await pauseTimer()
-      } else {
-        await saveTimerToDB(accumulated, null)
-      }
-    }
+  const closeOrder = () => {
     setActiveOrder(null)
+    setShowRejectMenu(false)
   }
 
-  // --- Format seconds -> HH:MM:SS or MM:SS ---
-  const formatTime = (totalSeconds) => {
-    const hrs = Math.floor(totalSeconds / 3600)
-    const mins = Math.floor((totalSeconds % 3600) / 60)
-    const secs = Math.floor(totalSeconds % 60)
-    if (hrs > 0) return `${hrs}h ${mins}m ${secs}s`
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
+  const handlePrintQR = () => {
+    if (!activeOrder) return
+    const printWindow = window.open('', '_blank')
+    if (!printWindow) return
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Print Label - ${activeOrder.vtiger_id}</title>
+          <style>
+            body { display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; font-family: sans-serif; }
+            .label { border: 2px solid black; padding: 20px; text-align: center; width: 250px; }
+            h2 { margin: 0; font-size: 28px; font-weight: 900; }
+            p { margin: 5px 0; font-weight: bold; text-transform: uppercase; font-size: 12px; }
+            .qr-box { margin: 15px 0; }
+          </style>
+        </head>
+        <body>
+          <div class="label">
+            <h2>${activeOrder.vtiger_id}</h2>
+            <p>${activeOrder.article_code || 'Stock'}</p>
+            <div id="qr" class="qr-box"></div>
+            <p style="font-size: 8px;">Scan to Start/Finish Stage</p>
+          </div>
+          <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
+          <script>
+            QRCode.toCanvas(document.getElementById('qr'), '${activeOrder.vtiger_id}', { width: 180 }, function() {
+              window.print();
+              window.close();
+            })
+          </script>
+        </body>
+      </html>
+    `)
+    printWindow.document.close()
   }
 
-  // --- Compute current total time for list view ---
   const getJobCurrentTime = (job) => {
     let acc = job.timer_accumulated || 0
     if (job.timer_started_at) {
@@ -241,55 +224,125 @@ function WorkshopContent() {
     return acc
   }
 
+  const formatTime = (totalSeconds) => {
+    const hrs = Math.floor(totalSeconds / 3600)
+    const mins = Math.floor((totalSeconds % 3600) / 60)
+    const secs = Math.floor(totalSeconds % 60)
+    if (hrs > 0) return `${hrs}h ${mins}m ${secs}s`
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
+  }
+
+  const rushJobs = activeJobs.filter(j => j.is_rush)
+
   return (
     <div className="max-w-2xl mx-auto p-4 bg-gray-50 min-h-screen pb-20">
-      
-      {/* HEADER TABS */}
-      <div className="flex bg-black p-1 rounded-xl mb-6 shadow-xl">
-        <button onClick={() => { setActiveTab('scanner'); closeOrder(); }} className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-lg font-black text-xs transition-all ${activeTab === 'scanner' ? 'bg-white text-black' : 'text-gray-400'}`}>
-          <ScanLine size={14}/> SCANNER
+      {/* Global message display */}
+      {scanMessage && (
+        <div className={`mb-4 p-4 rounded-xl border-2 font-black text-sm text-center uppercase animate-in slide-in-from-top-2 ${
+          scanMessage.type === 'start'
+            ? 'bg-blue-100 border-blue-600 text-blue-800'
+            : scanMessage.type === 'success'
+            ? 'bg-green-100 border-green-600 text-green-800'
+            : 'bg-red-100 border-red-600 text-red-800'
+        }`}>
+          {scanMessage.text}
+        </div>
+      )}
+
+      <div className="flex bg-black p-1 rounded-xl mb-6 shadow-xl gap-1">
+        <button
+          onClick={() => { setActiveTab('scanner'); closeOrder(); }}
+          className={`flex-1 flex items-center justify-center gap-1 py-3 rounded-lg font-black text-[10px] md:text-xs transition-all ${
+            activeTab === 'scanner' ? 'bg-white text-black' : 'text-gray-400 hover:text-white'
+          }`}
+        >
+          <ScanLine size={14} /> SCANNER
         </button>
-        <button onClick={() => { setActiveTab('overview'); closeOrder(); }} className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-lg font-black text-xs transition-all ${activeTab === 'overview' ? 'bg-white text-black' : 'text-gray-400'}`}>
-          <List size={14}/> ACTIVE ({activeJobs.length})
+        <button
+          onClick={() => { setActiveTab('overview'); closeOrder(); }}
+          className={`flex-1 flex items-center justify-center gap-1 py-3 rounded-lg font-black text-[10px] md:text-xs transition-all ${
+            activeTab === 'overview' ? 'bg-white text-black' : 'text-gray-400 hover:text-white'
+          }`}
+        >
+          <List size={14} /> ACTIVE ({activeJobs.length})
+        </button>
+        <button
+          onClick={() => { setActiveTab('rush'); closeOrder(); }}
+          className={`flex-1 flex items-center justify-center gap-1 py-3 rounded-lg font-black text-[10px] md:text-xs transition-all ${
+            activeTab === 'rush' ? 'bg-red-500 text-white' : 'text-gray-400 hover:text-red-400'
+          }`}
+        >
+          <Flame size={14} className={activeTab === 'rush' ? 'animate-pulse' : ''} /> RUSH ({rushJobs.length})
         </button>
       </div>
 
-      {/* STAFF SELECTOR */}
       <div className="mb-4 bg-white p-3 rounded-xl border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
-        <label className="text-[10px] font-black uppercase text-gray-400 flex items-center gap-1 mb-1"><User size={12}/> Workshop Staff</label>
-        <select className="w-full font-bold text-base bg-transparent outline-none cursor-pointer" value={staffName} onChange={(e) => setStaffName(e.target.value)}>
+        <label className="text-[10px] font-black uppercase text-gray-400 flex items-center gap-1 mb-1">
+          <User size={12} /> Technician
+        </label>
+        <select
+          className="w-full font-bold text-base bg-transparent outline-none cursor-pointer"
+          value={staffName}
+          onChange={(e) => setStaffName(e.target.value)}
+        >
           {STAFF_MEMBERS.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
       </div>
 
       {!activeOrder ? (
         <div className="animate-in fade-in duration-500">
-          {activeTab === 'scanner' ? (
+          {activeTab === 'scanner' && (
             <div className="space-y-4">
-              <div className="flex gap-2">
-                <input 
-                  type="text" 
-                  placeholder="SCAN OR TYPE ID..." 
-                  className="w-full p-4 border-4 border-black rounded-xl font-black text-xl uppercase shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] outline-none focus:bg-blue-50" 
-                  value={searchId} 
-                  onChange={(e) => setSearchId(e.target.value)} 
-                  onKeyDown={(e) => e.key === 'Enter' && findOrder()} 
+              <div className="flex gap-2 relative">
+                <input
+                  autoFocus
+                  type="text"
+                  placeholder="SCAN JOB BARCODE..."
+                  className="w-full p-6 border-4 border-black rounded-2xl font-black text-xl uppercase shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] outline-none focus:bg-blue-50"
+                  value={searchId}
+                  onChange={(e) => setSearchId(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleScan()}
                 />
-                <button onClick={() => findOrder()} className="bg-black text-white px-6 rounded-xl border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:shadow-none active:translate-y-1 transition-all">
-                  <Search />
+                <button
+                  onClick={handleScan}
+                  disabled={loading}
+                  className="bg-black text-white px-8 rounded-2xl border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:shadow-none active:translate-y-1 transition-all"
+                >
+                  {loading ? <Loader2 className="animate-spin" /> : <Search />}
                 </button>
               </div>
+              <div className="text-center mt-8">
+                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                  Scan 1x to Start Stage <br /> Scan 2x to Complete Stage
+                </p>
+              </div>
             </div>
-          ) : (
+          )}
+
+          {(activeTab === 'overview' || activeTab === 'rush') && (
             <div className="grid gap-3">
-              {activeJobs.map(job => {
+              {(activeTab === 'rush' ? rushJobs : activeJobs).length === 0 && (
+                <div className="text-center p-10 text-gray-400 font-black uppercase text-xs">
+                  No jobs found in this view.
+                </div>
+              )}
+              {(activeTab === 'rush' ? rushJobs : activeJobs).map(job => {
                 const currentTime = getJobCurrentTime(job)
                 return (
-                  <div key={job.id} onClick={() => setActiveOrder(job)} className="bg-white p-4 rounded-2xl border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] cursor-pointer flex justify-between items-center group active:scale-95 transition-transform">
+                  <div
+                    key={job.id}
+                    onClick={() => setActiveOrder(job)}
+                    className={`bg-white p-4 rounded-2xl border-2 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] cursor-pointer flex justify-between items-center group active:scale-95 transition-transform ${
+                      job.is_rush ? 'border-red-500' : 'border-black'
+                    }`}
+                  >
                     <div>
-                      <p className="font-black text-xl group-hover:text-blue-600">{job.vtiger_id}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="font-black text-xl group-hover:text-blue-600">{job.vtiger_id}</p>
+                        {job.is_rush && <Flame size={16} className="text-red-500 fill-red-500" />}
+                      </div>
                       <p className="text-[10px] text-blue-600 font-black uppercase flex items-center gap-1">
-                        <Package size={10}/> {job.article_code || 'Stock'}
+                        <Package size={10} /> {job.article_code || 'Stock'}
                       </p>
                     </div>
                     <div className="text-right">
@@ -305,89 +358,90 @@ function WorkshopContent() {
           )}
         </div>
       ) : (
-        /* --- ACTIVE JOB CARD --- */
         <div className="bg-white border-4 border-black p-6 rounded-[2.5rem] shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] animate-in zoom-in duration-200">
           <div className="flex justify-between items-start mb-6">
             <div>
-              <h2 className="text-5xl font-black tracking-tighter leading-none">{activeOrder.vtiger_id}</h2>
+              <div className="flex items-center gap-2">
+                <h2 className="text-5xl font-black tracking-tighter leading-none">{activeOrder.vtiger_id}</h2>
+                {activeOrder.is_rush && <Flame size={24} className="text-red-500 fill-red-500" />}
+              </div>
               <div className="flex items-center gap-2 mt-2">
                 <span className="bg-blue-600 text-white px-2 py-0.5 rounded text-[10px] font-black uppercase">
                   {activeOrder.article_code || 'NO CODE'}
                 </span>
-                <span className="text-gray-400 font-black text-[10px] uppercase italic">Stage: {activeOrder.current_stage}</span>
+                <span className="text-gray-400 font-black text-[10px] uppercase italic">
+                  Stage: {activeOrder.current_stage}
+                </span>
               </div>
             </div>
-            <button onClick={closeOrder} className="text-gray-300 hover:text-black"><X size={32}/></button>
-          </div>
-
-          {/* STONE TRACKING */}
-          <div className="grid grid-cols-2 gap-3 mb-6">
-            <button onClick={() => toggleStone('center_stone_received', activeOrder.center_stone_received)} className={`p-4 rounded-2xl border-2 border-black flex flex-col items-center gap-2 transition-all ${activeOrder.center_stone_received ? 'bg-green-500 text-white shadow-inner' : 'bg-red-50 text-red-500 border-dashed'}`}>
-              <Gem size={24} />
-              <span className="text-[10px] font-black uppercase">{activeOrder.center_stone_received ? 'Center: Received' : 'Center: Needed'}</span>
-            </button>
-            <button onClick={() => toggleStone('side_stones_received', activeOrder.side_stones_received)} className={`p-4 rounded-2xl border-2 border-black flex flex-col items-center gap-2 transition-all ${activeOrder.side_stones_received ? 'bg-green-500 text-white shadow-inner' : 'bg-red-50 text-red-500 border-dashed'}`}>
-              <Layers size={24} />
-              <span className="text-[10px] font-black uppercase">{activeOrder.side_stones_received ? 'Sides: Received' : 'Sides: Needed'}</span>
+            <button onClick={closeOrder} className="text-gray-300 hover:text-black">
+              <X size={32} />
             </button>
           </div>
 
-          {/* --- TIMER SECTION --- */}
-          <div className="bg-black text-white p-5 rounded-3xl mb-6 border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
-            <div className="flex items-center justify-between">
-              <div className="text-4xl font-mono font-black tracking-wider">
-                {formatTime(elapsedSeconds)}
-              </div>
-              <div className="flex gap-2">
-                {!isTimerRunning ? (
-                  <button 
-                    onClick={startTimer}
-                    disabled={timerLoading}
-                    className="bg-green-500 hover:bg-green-600 p-3 rounded-full text-black border-2 border-white transition-all active:scale-90"
-                  >
-                    <Play size={20} fill="black" />
-                  </button>
-                ) : (
-                  <button 
-                    onClick={pauseTimer}
-                    disabled={timerLoading}
-                    className="bg-yellow-400 hover:bg-yellow-500 p-3 rounded-full text-black border-2 border-white transition-all active:scale-90"
-                  >
-                    <Pause size={20} fill="black" />
-                  </button>
-                )}
-                <button 
-                  onClick={resetTimer}
-                  disabled={timerLoading}
-                  className="bg-gray-600 hover:bg-gray-700 p-3 rounded-full text-white border-2 border-white transition-all active:scale-90"
-                >
-                  <RotateCcw size={20} />
-                </button>
-              </div>
+          <div className="relative flex flex-col items-center bg-gray-50 border-2 border-black rounded-3xl p-4 mb-6">
+            <div className="bg-white p-2 border border-black rounded-lg shadow-sm">
+              <QRCodeCanvas
+                value={activeOrder.vtiger_id}
+                size={120}
+                level="H"
+                includeMargin={false}
+              />
             </div>
-            {timerLoading && (
-              <div className="text-[10px] text-gray-300 mt-2 flex items-center gap-1">
-                <Loader2 size={12} className="animate-spin" /> saving...
-              </div>
-            )}
-            {accumulated > 0 && !timerLoading && (
-              <div className="text-[10px] text-gray-400 mt-2">
-                Previously logged: {formatTime(accumulated)}
-              </div>
-            )}
-          </div>
-
-          {/* PROGRESS BUTTON */}
-          <div className="space-y-4">
-            <button 
-              disabled={loading || timerLoading} 
-              onClick={() => handleMove(false)} 
-              className="w-full bg-green-500 text-white p-6 border-4 border-black rounded-3xl font-black text-2xl flex items-center justify-center gap-3 hover:bg-green-600 active:scale-95 transition-all shadow-[0px_6px_0px_0px_rgba(21,128,61,1)] disabled:opacity-50"
+            <p className="text-[9px] font-black uppercase mt-2 text-gray-400 tracking-widest">
+              Digital Job Token
+            </p>
+            <button
+              onClick={handlePrintQR}
+              className="absolute top-2 right-2 bg-black text-white p-2 rounded-full hover:scale-110 transition-transform shadow-lg"
+              title="Print QR Label"
             >
-              {loading ? <Loader2 className="animate-spin" /> : <><CheckCircle size={28}/> MOVE TO NEXT</>}
+              <Printer size={16} />
+            </button>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 mb-6">
+            <button
+              onClick={() => toggleStone('center_stone_received', activeOrder.center_stone_received)}
+              className={`p-4 rounded-2xl border-2 border-black flex flex-col items-center gap-2 transition-all ${
+                activeOrder.center_stone_received
+                  ? 'bg-green-500 text-white shadow-inner'
+                  : 'bg-gray-50 text-gray-400 border-dashed'
+              }`}
+            >
+              <Gem size={24} />
+              <span className="text-[10px] font-black uppercase">
+                {activeOrder.center_stone_received ? 'Center: Ready' : 'Center: Needed'}
+              </span>
+            </button>
+            <button
+              onClick={() => toggleStone('side_stones_received', activeOrder.side_stones_received)}
+              className={`p-4 rounded-2xl border-2 border-black flex flex-col items-center gap-2 transition-all ${
+                activeOrder.side_stones_received
+                  ? 'bg-green-500 text-white shadow-inner'
+                  : 'bg-gray-50 text-gray-400 border-dashed'
+              }`}
+            >
+              <Layers size={24} />
+              <span className="text-[10px] font-black uppercase">
+                {activeOrder.side_stones_received ? 'Sides: Ready' : 'Sides: Needed'}
+              </span>
+            </button>
+          </div>
+
+          <div className="space-y-4">
+            <button
+              disabled={loading}
+              onClick={() => handleManualMove(false)}
+              className="w-full bg-black text-white p-6 border-4 border-black rounded-3xl font-black text-2xl flex items-center justify-center gap-3 hover:bg-gray-800 active:scale-95 transition-all shadow-[0px_6px_0px_0px_rgba(0,0,0,0.5)] disabled:opacity-50"
+            >
+              {loading ? <Loader2 className="animate-spin" /> : <><CheckCircle size={28} /> MANUAL COMPLETE</>}
             </button>
 
-            <button onClick={() => setShowRejectMenu(!showRejectMenu)} className="w-full bg-red-50 text-red-600 p-4 border-2 border-red-600 border-dashed rounded-2xl font-black text-xs uppercase">
+            <button
+              onClick={() => setShowRejectMenu(!showRejectMenu)}
+              className="w-full bg-red-50 text-red-600 p-4 border-2 border-red-600 border-dashed rounded-2xl font-black text-xs uppercase hover:bg-red-100"
+            >
               Fail QC / Send back to Goldsmithing
             </button>
 
@@ -396,7 +450,11 @@ function WorkshopContent() {
                 <p className="text-[10px] font-black uppercase mb-3 text-red-700">Reason for Redo:</p>
                 <div className="grid grid-cols-1 gap-2">
                   {REDO_REASONS.map(reason => (
-                    <button key={reason} onClick={() => handleMove(true, reason)} className="bg-white p-3 border-2 border-black rounded-xl font-black text-[10px] uppercase hover:bg-red-600 hover:text-white transition-colors text-left">
+                    <button
+                      key={reason}
+                      onClick={() => handleManualMove(true, reason)}
+                      className="bg-white p-3 border-2 border-black rounded-xl font-black text-[10px] uppercase hover:bg-red-600 hover:text-white transition-colors text-left"
+                    >
                       {reason}
                     </button>
                   ))}
@@ -412,7 +470,7 @@ function WorkshopContent() {
 
 export default function WorkshopPage() {
   return (
-    <Suspense fallback={<div className="p-20 text-center font-black animate-pulse">LOADING WORKSHOP...</div>}>
+    <Suspense fallback={<div className="p-20 text-center font-black animate-pulse">SYNCING WORKSHOP...</div>}>
       <WorkshopContent />
     </Suspense>
   )
