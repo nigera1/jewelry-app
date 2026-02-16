@@ -9,7 +9,8 @@ import {
   Loader2, Gem, Layers, List, ScanLine, Package, Printer, Camera, Keyboard, Clock
 } from 'lucide-react'
 
-const STAGES = ['At Casting', 'Goldsmithing', 'Setting', 'Polishing', 'QC', 'Completed']
+// Updated stages to match new production flow
+const STAGES = ['At Casting', 'Casted', 'Goldsmithing', 'Setting', 'Polishing', 'QC', 'Completed']
 const STAFF_MEMBERS = ['Goldsmith 1', 'Goldsmith 2', 'Setter 1', 'Setter 2', 'Polisher 1', 'QC']
 const REDO_REASONS = ['Loose Stone', 'Polishing Issue', 'Sizing Error', 'Metal Flaw', 'Other']
 const COOLDOWN_MS = 5 * 60 * 1000 // 5 minutes
