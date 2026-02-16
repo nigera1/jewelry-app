@@ -134,6 +134,7 @@ function WorkshopContent() {
   const [scanMessage, setScanMessage] = useState(null)
   // Cooldown state
   const [cooldownUntil, setCooldownUntil] = useState(null)
+  const processingRef = useRef(false) // Prevent concurrent scans
 
   // Camera scanner state
   const [scanMode, setScanMode] = useState('manual')
@@ -227,71 +228,83 @@ function WorkshopContent() {
   // --- Process scanned/typed ID ---
   const processOrderId = async (cleanId) => {
     if (!cleanId) return
-    if (cooldownRemaining > 0) {
-      setScanMessage({ type: 'error', text: `Please wait ${cooldownRemaining}s before next scan` })
+
+    // Immediate cooldown check using cooldownUntil
+    if (cooldownUntil && Date.now() < cooldownUntil) {
+      const remaining = Math.ceil((cooldownUntil - Date.now()) / 1000)
+      setScanMessage({ type: 'error', text: `Please wait ${remaining}s before next scan` })
       return
     }
+
+    // Prevent concurrent processing
+    if (processingRef.current) return
+    processingRef.current = true
     setLoading(true)
 
-    const { data: order, error } = await supabase
-      .from('orders')
-      .select('*')
-      .eq('vtiger_id', cleanId)
-      .single()
-
-    if (!order || error) {
-      setScanMessage({ type: 'error', text: `Order ${cleanId} not found!` })
-      setSearchId('')
-      setLoading(false)
-      return
-    }
-
-    const now = new Date()
-
-    if (!order.timer_started_at) {
-      // START
-      await supabase
+    try {
+      const { data: order, error } = await supabase
         .from('orders')
-        .update({ timer_started_at: now.toISOString() })
-        .eq('id', order.id)
+        .select('*')
+        .eq('vtiger_id', cleanId)
+        .single()
 
-      await supabase.from('production_logs').insert([{
-        order_id: order.id,
-        staff_name: staffName,
-        action: 'STARTED',
-        new_stage: order.current_stage
-      }])
+      if (!order || error) {
+        setScanMessage({ type: 'error', text: `Order ${cleanId} not found!` })
+        setSearchId('')
+        return
+      }
 
-      setScanMessage({
-        type: 'start',
-        text: `▶️ STARTED: ${order.vtiger_id} at ${order.current_stage}`
-      })
-    } else {
-      // COMPLETE
-      const start = new Date(order.timer_started_at)
-      const durationSeconds = Math.floor((now - start) / 1000) + (order.timer_accumulated || 0)
+      const now = new Date()
 
-      const currentIndex = STAGES.indexOf(order.current_stage)
-      const nextStage = STAGES[currentIndex + 1] || 'Completed'
+      if (!order.timer_started_at) {
+        // START
+        await supabase
+          .from('orders')
+          .update({ timer_started_at: now.toISOString() })
+          .eq('id', order.id)
 
-      await updateOrderStage({
-        order,
-        nextStage,
-        action: 'COMPLETED',
-        durationSeconds
-      })
+        await supabase.from('production_logs').insert([{
+          order_id: order.id,
+          staff_name: staffName,
+          action: 'STARTED',
+          new_stage: order.current_stage
+        }])
 
-      setScanMessage({
-        type: 'success',
-        text: `✅ COMPLETED: ${order.vtiger_id}. Moved to ${nextStage}`
-      })
+        setScanMessage({
+          type: 'start',
+          text: `▶️ STARTED: ${order.vtiger_id} at ${order.current_stage}`
+        })
+      } else {
+        // COMPLETE
+        const start = new Date(order.timer_started_at)
+        const durationSeconds = Math.floor((now - start) / 1000) + (order.timer_accumulated || 0)
+
+        const currentIndex = STAGES.indexOf(order.current_stage)
+        const nextStage = STAGES[currentIndex + 1] || 'Completed'
+
+        await updateOrderStage({
+          order,
+          nextStage,
+          action: 'COMPLETED',
+          durationSeconds
+        })
+
+        setScanMessage({
+          type: 'success',
+          text: `✅ COMPLETED: ${order.vtiger_id}. Moved to ${nextStage}`
+        })
+      }
+
+      // Set cooldown after successful scan
+      setCooldownUntil(Date.now() + COOLDOWN_MS)
+      setSearchId('')
+    } catch (err) {
+      console.error(err)
+      setScanMessage({ type: 'error', text: 'An error occurred' })
+    } finally {
+      setLoading(false)
+      processingRef.current = false
     }
-
-    // Set cooldown after successful scan
-    setCooldownUntil(Date.now() + COOLDOWN_MS)
-
-    setSearchId('')
-    setLoading(false)
   }
 
   const handleScan = () => {

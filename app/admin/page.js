@@ -281,11 +281,11 @@ export default function AdminPage() {
 
   // Kanban column renderer
   const renderColumn = (title, icon, jobs, color) => (
-    <div className={`${color.bg} border-4 ${color.border} rounded-[2rem] p-5 shadow-[6px_6px_0px_0px_black]`}>
+    <div className={`${color.bg} border-4 ${color.border} rounded-4xl5 shadow-[6px_6px_0px_0px_black]`}>
       <div className={`flex items-center gap-2 ${color.text} mb-4 border-b-4 ${color.accent} pb-3 font-black uppercase text-xs tracking-tighter`}>
         {icon} {title} ({jobs.length})
       </div>
-      <div className="space-y-3 overflow-y-auto max-h-[600px] pr-1">
+      <div className="space-y-3 overflow-y-auto max-h-150 pr-1">
         {jobs.map(job => (
           <div
             key={job.id}
@@ -306,7 +306,7 @@ export default function AdminPage() {
   )
 
   return (
-    <div className="max-w-[90rem] mx-auto p-6 space-y-8 pb-20 relative font-sans">
+    <div className="max-w-360 mx-auto p-6 space-y-8 pb-20 relative font-sans">
 
       {/* JOB DETAIL MODAL (now passes full order) */}
       {hoveredOrder && (
@@ -404,9 +404,9 @@ export default function AdminPage() {
                       <span className="text-[10px] font-black uppercase text-gray-500">{log.staff_name}</span>
                     </div>
                     <div className="flex items-center gap-2 text-[10px] font-black uppercase bg-white px-3 py-2 rounded-xl border-2 border-black">
-                      <span className="text-gray-400 truncate max-w-[60px]">{log.previous_stage}</span>
+                      <span className="text-gray-400 truncate max-w-15">{log.previous_stage}</span>
                       <ArrowRight size={12} className="text-black shrink-0" />
-                      <span className="text-blue-600 truncate max-w-[60px]">{log.new_stage}</span>
+                      <span className="text-blue-600 truncate max-w-15">{log.new_stage}</span>
                     </div>
                   </div>
                 ))
