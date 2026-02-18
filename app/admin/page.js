@@ -3,7 +3,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import {
   History, ArrowRight, Clock, Factory, Hammer, Gem, Sparkles,
-  Search, PlayCircle, Archive, X, RotateCcw
+  Search, PlayCircle, Archive, X, RotateCcw, Globe
 } from 'lucide-react'
 
 // Simple debounce utility
@@ -355,7 +355,7 @@ export default function AdminPage() {
     return formatDuration(totalSecs)
   }
 
-  // Kanban column renderer
+  // Kanban column renderer (updated with external indicator)
   const renderColumn = (title, icon, jobs, color) => (
     <div className={`${color.bg} border-4 ${color.border} rounded-[2rem] p-5 shadow-[6px_6px_0px_0px_black]`}>
       <div className={`flex items-center gap-2 ${color.text} mb-4 border-b-4 ${color.accent} pb-3 font-black uppercase text-xs tracking-tighter`}>
@@ -374,6 +374,12 @@ export default function AdminPage() {
             </div>
             <p className="text-[10px] font-black text-blue-600 uppercase truncate">
               {job.article_code || 'No Article'}
+              {/* External indicator for Setting/Polishing */}
+              {(job.current_stage === 'Setting' || job.current_stage === 'Polishing') && job.is_external && (
+                <span className="ml-2 inline-flex items-center gap-0.5 bg-blue-100 text-blue-700 px-1 py-0.5 rounded text-[8px] font-black uppercase">
+                  <Globe size={8} /> EXT
+                </span>
+              )}
             </p>
           </div>
         ))}
@@ -491,7 +497,7 @@ export default function AdminPage() {
           </div>
         </div>
       ) : (
-        // --- COMPLETIONS ARCHIVE VIEW ---
+        // --- COMPLETIONS ARCHIVE VIEW (updated with external columns) ---
         <div className="bg-white border-4 border-black rounded-[3rem] overflow-hidden shadow-[12px_12px_0px_0px_black] animate-in slide-in-from-bottom-4 duration-500">
           <div className="p-8 bg-gray-50 border-b-4 border-black flex flex-col sm:flex-row justify-between items-center gap-6">
             <div>
@@ -544,7 +550,9 @@ export default function AdminPage() {
                     <th className="p-6 whitespace-nowrap">Total Time</th>
                     <th className="p-6 whitespace-nowrap text-orange-400">Goldsmithing</th>
                     <th className="p-6 whitespace-nowrap text-purple-400">Setting</th>
+                    <th className="p-6 whitespace-nowrap text-purple-400">Set Ext</th>
                     <th className="p-6 whitespace-nowrap text-emerald-400">Polishing</th>
+                    <th className="p-6 whitespace-nowrap text-emerald-400">Pol Ext</th>
                     <th className="p-6 whitespace-nowrap text-right">Date Finished</th>
                   </tr>
                 </thead>
@@ -572,7 +580,21 @@ export default function AdminPage() {
                         </td>
                         <td className="p-6 text-sm font-black text-gray-500">{formatDuration(durations.Goldsmithing)}</td>
                         <td className="p-6 text-sm font-black text-gray-500">{formatDuration(durations.Setting)}</td>
+                        <td className="p-6 text-center">
+                          {job.is_external ? (
+                            <span className="inline-flex items-center justify-center w-6 h-6 bg-green-100 text-green-700 rounded-full font-black">✓</span>
+                          ) : (
+                            <span className="text-gray-300">—</span>
+                          )}
+                        </td>
                         <td className="p-6 text-sm font-black text-gray-500">{formatDuration(durations.Polishing)}</td>
+                        <td className="p-6 text-center">
+                          {job.is_external ? (
+                            <span className="inline-flex items-center justify-center w-6 h-6 bg-green-100 text-green-700 rounded-full font-black">✓</span>
+                          ) : (
+                            <span className="text-gray-300">—</span>
+                          )}
+                        </td>
                         <td className="p-6 text-right text-xs font-black text-gray-400 uppercase tracking-wider">
                           {new Date(job.updated_at).toLocaleDateString(undefined, { month: 'short', day: '2-digit', year: 'numeric' })}
                         </td>
