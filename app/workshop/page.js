@@ -6,6 +6,7 @@ import {
   Search, User, X, CheckCircle, Flame,
   Loader2, Gem, Layers, List, ScanLine, Package, Printer, Camera, Keyboard, Clock,
   Globe, Home, AlertOctagon, Calendar,
+  Sparkles, Type, Circle  // added for order details
 } from 'lucide-react'
 
 // ✅ Lazy‑load QR code library
@@ -227,7 +228,7 @@ const CameraScanner = ({ containerId, onScan, onStop }) => {
   )
 }
 
-// ─── Active Order Card (separate Start/Stop buttons) ─────────────────────────
+// ─── ENHANCED Active Order Card (full details from OrderEntry) ───────────────
 function ActiveOrderCard({
   order, loading,
   isExternal, setIsExternal,
@@ -239,6 +240,20 @@ function ActiveOrderCard({
   onTimerStart, onTimerStop,
   onClose, onToggleStone, onMove, onPrint,
 }) {
+  // Helper to render array fields as badges
+  const renderBadges = (items) => {
+    if (!items || items.length === 0) return <span className="text-gray-400 italic text-xs">None</span>
+    return (
+      <div className="flex flex-wrap gap-1 mt-1">
+        {items.map(item => (
+          <span key={item} className="bg-white border border-black px-2 py-0.5 rounded-full text-[9px] font-bold uppercase shadow-sm">
+            {item}
+          </span>
+        ))}
+      </div>
+    )
+  }
+
   return (
     <div className="bg-white border-4 border-black p-4 md:p-6 rounded-[2.5rem] shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] animate-in zoom-in duration-200">
 
@@ -271,7 +286,7 @@ function ActiveOrderCard({
         <button onClick={onClose} className="text-gray-300 hover:text-black ml-2 shrink-0"><X size={32} /></button>
       </div>
 
-      {/* Order details */}
+      {/* Basic order details */}
       <div className="bg-gray-50 border-2 border-black rounded-2xl p-4 mb-6 grid grid-cols-2 gap-y-3">
         <div>
           <p className="text-xs font-black text-gray-400 uppercase">Metal</p>
@@ -283,9 +298,49 @@ function ActiveOrderCard({
         </div>
         <div className="col-span-2">
           <p className="text-xs font-black text-gray-400 uppercase">Instructions</p>
-          <p className="text-[10px] font-bold italic">{order.instructions || 'No special notes'}</p>
+          <p className="text-[10px] font-bold italic">{order.description || 'No special notes'}</p>
         </div>
       </div>
+
+      {/* Stone Settings & Finish */}
+      <div className="bg-gray-50 border-2 border-black rounded-2xl p-4 mb-6 space-y-4">
+        <div>
+          <p className="text-xs font-black text-gray-400 uppercase flex items-center gap-1">
+            <Sparkles size={14} /> Central Setting
+          </p>
+          {renderBadges(order.setting_central)}
+        </div>
+        <div>
+          <p className="text-xs font-black text-gray-400 uppercase flex items-center gap-1">
+            <Layers size={14} /> Small Setting
+          </p>
+          {renderBadges(order.setting_small)}
+        </div>
+        <div>
+          <p className="text-xs font-black text-gray-400 uppercase flex items-center gap-1">
+            <Circle size={14} /> Finish
+          </p>
+          {renderBadges(order.finish)}
+        </div>
+      </div>
+
+      {/* Engraving details */}
+      {(order.engraving_company || order.engraving_personal) && (
+        <div className="bg-gray-50 border-2 border-black rounded-2xl p-4 mb-6">
+          <p className="text-xs font-black text-gray-400 uppercase flex items-center gap-1 mb-2">
+            <Type size={14} /> Engraving
+          </p>
+          <div className="space-y-1 text-xs">
+            {order.engraving_company && <div><span className="font-black">Company:</span> Yes</div>}
+            {order.engraving_personal && (
+              <div>
+                <span className="font-black">Personal:</span> Yes
+                {order.engraving_font && <span className="ml-2 font-mono text-[10px] bg-white px-1 py-0.5 rounded border border-black">Font: {order.engraving_font}</span>}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Last redo reason alert */}
       {lastRedoReason && order.current_stage === 'Goldsmithing' && (
@@ -454,6 +509,7 @@ function WorkshopContent() {
     setManualStage(activeOrder.current_stage)
     setIsExternal(activeOrder.is_external || false)
     fetchLastRedoReason(activeOrder.id)
+    setIsTimerRunning(!!activeOrder.timer_started_at)
   }, [activeOrder])
 
   const fetchLastRedoReason = useCallback(async (orderId) => {
@@ -535,24 +591,45 @@ function WorkshopContent() {
     }])
   }, [activeOrder, staffName])
 
-  // STOP: clear start time, accumulate elapsed in DB + log
+  // STOP: complete the stage and move to next
   const handleTimerStop = useCallback(async () => {
     if (!activeOrder || !isTimerRunning) return
-    const accumulated = (activeOrder.timer_accumulated || 0) +
+
+    // Calculate total elapsed time
+    const elapsed = (activeOrder.timer_accumulated || 0) +
       Math.floor((Date.now() - new Date(activeOrder.timer_started_at).getTime()) / 1000)
-    setIsTimerRunning(false)
+
+    // Determine next stage in sequence
+    const currentIdx = STAGES.indexOf(activeOrder.current_stage)
+    const nextStage = currentIdx >= 0 && currentIdx < STAGES.length - 1
+      ? STAGES[currentIdx + 1]
+      : 'Completed'
+
+    // Update order: move to next stage, reset timer
     await supabase.from('orders').update({
+      current_stage: nextStage,
       timer_started_at: null,
-      timer_accumulated: accumulated,
+      timer_accumulated: 0,
+      updated_at: new Date().toISOString()
     }).eq('id', activeOrder.id)
+
+    // Insert log with COMPLETED action
     await supabase.from('production_logs').insert([{
       order_id: activeOrder.id,
       staff_name: staffName,
-      action: 'PAUSED',
-      new_stage: activeOrder.current_stage,
-      duration_seconds: accumulated,
+      action: 'COMPLETED',
+      previous_stage: activeOrder.current_stage,
+      new_stage: nextStage,
+      duration_seconds: elapsed,
     }])
-  }, [activeOrder, isTimerRunning, staffName])
+
+    // Update local state
+    setIsTimerRunning(false)
+    setActiveOrder(null)
+    setOrderCooldown(activeOrder.id)
+    setScanMessage({ type: 'success', text: `✅ Completed ${activeOrder.vtiger_id}. Moved to ${nextStage}` })
+    fetchActiveJobs()
+  }, [activeOrder, isTimerRunning, staffName, setOrderCooldown, fetchActiveJobs])
 
   const processOrderId = useCallback(async (cleanId) => {
     if (!cleanId || processingRef.current) return
