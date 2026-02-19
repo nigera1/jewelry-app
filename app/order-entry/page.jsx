@@ -10,7 +10,7 @@ import { OrderLabel, LabelPlaceholder }    from '@/app/order-entry/components/Or
  * Left  → OrderForm   (controlled; all logic in useOrderForm)
  * Right → OrderLabel  (preview + A4 print) or LabelPlaceholder
  *
- * This component owns zero business logic — it only wires the hook to the components.
+ * This component owns zero business logic – it only wires the hook to the components.
  */
 export default function OrderEntryPage() {
   const {

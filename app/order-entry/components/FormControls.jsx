@@ -5,10 +5,18 @@
  * @param {boolean}       props.active       - Whether the button is in its "on" state.
  * @param {Function}      props.onClick
  * @param {string}        props.activeClass  - Tailwind classes applied when active.
+ * @param {string}        [props.inactiveClass] - Tailwind classes applied when inactive (default: high‑contrast).
  * @param {React.ReactNode} props.children
  * @param {string}        [props.className]  - Optional extra classes.
  */
-export function ToggleButton({ active, onClick, activeClass, children, className = '' }) {
+export function ToggleButton({
+  active,
+  onClick,
+  activeClass,
+  inactiveClass = 'bg-white text-black border-2 border-black',
+  children,
+  className = '',
+}) {
   return (
     <button
       type="button"
@@ -18,7 +26,7 @@ export function ToggleButton({ active, onClick, activeClass, children, className
         font-bold text-[10px] uppercase
         shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-y-0.5 active:shadow-none
         transition-all
-        ${active ? activeClass : 'bg-gray-100 text-gray-500'}
+        ${active ? activeClass : inactiveClass}
         ${className}
       `}
     >
@@ -36,10 +44,18 @@ export function ToggleButton({ active, onClick, activeClass, children, className
  * @param {string[]}      props.options  - All available options.
  * @param {string[]}      props.selected - Currently selected values.
  * @param {Function}      props.onChange - Called with the toggled option string.
+ * @param {string}        [props.className] - Optional extra classes.
  */
-export function CheckboxGroup({ title, icon: Icon, options, selected, onChange }) {
+export function CheckboxGroup({
+  title,
+  icon: Icon,
+  options,
+  selected,
+  onChange,
+  className = '',
+}) {
   return (
-    <div className="border-2 border-black rounded-xl p-3 bg-gray-50">
+    <div className={`border-2 border-black rounded-xl p-3 bg-gray-50 text-gray-900 ${className}`}>
       <div className="flex items-center gap-1 text-[10px] font-black uppercase mb-1">
         <Icon size={14} /> {title}
       </div>
