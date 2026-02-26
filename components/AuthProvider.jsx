@@ -1,11 +1,11 @@
 'use client'
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 
 const AuthContext = createContext({
   user: null,
   loading: true,
-  signOut: async () => {},
+  signOut: async () => { },
 })
 
 export function useAuth() {
@@ -34,13 +34,15 @@ export function AuthProvider({ children }) {
     return () => subscription.unsubscribe()
   }, [])
 
-  const signOut = async () => {
+  const signOut = useCallback(async () => {
     await supabase.auth.signOut()
     setUser(null)
-  }
+  }, [])
+
+  const value = useMemo(() => ({ user, loading, signOut }), [user, loading, signOut])
 
   return (
-    <AuthContext.Provider value={{ user, loading, signOut }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   )

@@ -1,10 +1,11 @@
 'use client'
+import { memo } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useAuth } from '@/components/AuthProvider'
 import { LogOut } from 'lucide-react'
 
-export function Navbar() {
+export const Navbar = memo(function Navbar() {
     const pathname = usePathname()
     const { user, signOut } = useAuth()
 
@@ -29,6 +30,7 @@ export function Navbar() {
                         <Link href="/casting" className="hover:text-blue-400">Casting</Link>
                         <Link href="/workshop" className="hover:text-blue-400">Workshop</Link>
                         <Link href="/admin" className="hover:text-blue-400">Admin</Link>
+                        <Link href="/analytics" className="hover:text-blue-400">Analytics</Link>
                     </div>
 
                     <button
@@ -43,4 +45,4 @@ export function Navbar() {
             </div>
         </nav>
     )
-}
+})

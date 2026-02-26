@@ -1,18 +1,19 @@
 'use client'
-import { Suspense, useState, useEffect } from 'react' // Added useState, useEffect
+import { Suspense, useState, useEffect } from 'react'
+import { ProtectedRoute } from '@/components/ProtectedRoute'
 import { useWorkshopState } from './hooks/useWorkshopState'
-import { ScanMessage }      from './components/ScanMessage'
-import { TabBar }           from './components/TabBar'
-import { StaffSelector }    from './components/StaffSelector'
+import { ScanMessage } from './components/ScanMessage'
+import { TabBar } from './components/TabBar'
+import { StaffSelector } from './components/StaffSelector'
 import { ScannerModeToggle, ManualScanner, CameraScanner } from './components/Scanner'
-import { JobList }          from './components/JobList'
-import { ActiveOrderCard }  from './components/ActiveOrderCard/index'
-import { printQRCode }      from './utils/printQRCode'
+import { JobList } from './components/JobList'
+import { ActiveOrderCard } from './components/ActiveOrderCard/index'
+import { printQRCode } from './utils/printQRCode'
 
 function WorkshopContent() {
   // 1. PREVENTION: Avoid hydration mismatch/client exceptions
   const [mounted, setMounted] = useState(false);
-  
+
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -35,8 +36,8 @@ function WorkshopContent() {
     /* 2. FIX: Added 'text-slate-900' to force dark text on light background.
        3. FIX: Added style={{ colorScheme: 'light' }} to tell Chrome NOT to invert these colors.
     */
-    <div 
-      className="max-w-2xl mx-auto p-4 bg-gray-50 min-h-screen pb-20 text-slate-900" 
+    <div
+      className="max-w-2xl mx-auto p-4 bg-gray-50 min-h-screen pb-20 text-slate-900"
       style={{ colorScheme: 'light' }}
     >
       <ScanMessage message={scanMessage} />
@@ -112,12 +113,14 @@ function WorkshopContent() {
 
 export default function WorkshopPage() {
   return (
-    <Suspense fallback={
-      <div className="p-20 text-center font-black animate-pulse text-slate-900">
-        SYNCING WORKSHOP…
-      </div>
-    }>
-      <WorkshopContent />
-    </Suspense>
+    <ProtectedRoute>
+      <Suspense fallback={
+        <div className="p-20 text-center font-black animate-pulse text-slate-900">
+          SYNCING WORKSHOP…
+        </div>
+      }>
+        <WorkshopContent />
+      </Suspense>
+    </ProtectedRoute>
   )
 }

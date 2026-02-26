@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
 import { useAuth } from '@/components/AuthProvider'
@@ -21,17 +21,19 @@ export default function LoginPage() {
         }
     }, [user, loading, router])
 
-    const handleSubmit = async (e) => {
+    const handleSubmit = useCallback(async (e) => {
         e.preventDefault()
         setError('')
         setSubmitting(true)
 
+        const trimmedEmail = email.trim()
+
         try {
             if (isSignUp) {
-                const { error } = await supabase.auth.signUp({ email, password })
+                const { error } = await supabase.auth.signUp({ email: trimmedEmail, password })
                 if (error) throw error
             } else {
-                const { error } = await supabase.auth.signInWithPassword({ email, password })
+                const { error } = await supabase.auth.signInWithPassword({ email: trimmedEmail, password })
                 if (error) throw error
             }
             // Auth state change listener in AuthProvider will handle redirect
@@ -40,7 +42,12 @@ export default function LoginPage() {
         } finally {
             setSubmitting(false)
         }
-    }
+    }, [email, password, isSignUp])
+
+    const handleToggleMode = useCallback(() => {
+        setIsSignUp(prev => !prev)
+        setError('')
+    }, [])
 
     // Show nothing while checking auth
     if (loading || user) {
@@ -81,12 +88,14 @@ export default function LoginPage() {
                             : 'Sign in to your account'}
                     </p>
 
-                    {/* Error */}
-                    {error && (
-                        <div className="mb-6 bg-red-500/10 border border-red-500/30 rounded-2xl px-4 py-3 text-sm text-red-400 font-medium animate-in fade-in slide-in-from-top-2 duration-200">
-                            {error}
-                        </div>
-                    )}
+                    {/* Error — aria-live for screen readers */}
+                    <div aria-live="polite" aria-atomic="true">
+                        {error && (
+                            <div role="alert" className="mb-6 bg-red-500/10 border border-red-500/30 rounded-2xl px-4 py-3 text-sm text-red-400 font-medium animate-in fade-in slide-in-from-top-2 duration-200">
+                                {error}
+                            </div>
+                        )}
+                    </div>
 
                     <form onSubmit={handleSubmit} className="space-y-5">
                         <div>
@@ -100,6 +109,7 @@ export default function LoginPage() {
                                 id="email"
                                 type="email"
                                 required
+                                autoComplete="email"
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
                                 placeholder="you@example.com"
@@ -119,6 +129,7 @@ export default function LoginPage() {
                                 type="password"
                                 required
                                 minLength={6}
+                                autoComplete={isSignUp ? 'new-password' : 'current-password'}
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
                                 placeholder="••••••••"
@@ -142,10 +153,7 @@ export default function LoginPage() {
                             {isSignUp ? 'Already have an account?' : "Don't have an account?"}{' '}
                             <button
                                 type="button"
-                                onClick={() => {
-                                    setIsSignUp(!isSignUp)
-                                    setError('')
-                                }}
+                                onClick={handleToggleMode}
                                 className="text-white font-bold hover:text-blue-400 transition-colors"
                             >
                                 {isSignUp ? 'Sign In' : 'Sign Up'}

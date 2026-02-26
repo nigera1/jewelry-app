@@ -1,7 +1,8 @@
 'use client'
-import { useOrderForm }                    from '@/app/order-entry/hooks/useOrderForm'
-import { OrderForm }                       from '@/app/order-entry/components/OrderForm'
-import { OrderLabel, LabelPlaceholder }    from '@/app/order-entry/components/OrderLabel'
+import { ProtectedRoute } from '@/components/ProtectedRoute'
+import { useOrderForm } from '@/app/order-entry/hooks/useOrderForm'
+import { OrderForm } from '@/app/order-entry/components/OrderForm'
+import { OrderLabel, LabelPlaceholder } from '@/app/order-entry/components/OrderLabel'
 
 /**
  * Order entry page.
@@ -25,23 +26,25 @@ export default function OrderEntryPage() {
   } = useOrderForm()
 
   return (
-    <div className="max-w-5xl mx-auto p-4 grid grid-cols-1 md:grid-cols-2 gap-6">
+    <ProtectedRoute>
+      <div className="max-w-5xl mx-auto p-4 grid grid-cols-1 md:grid-cols-2 gap-6">
 
-      <OrderForm
-        formData={formData}
-        loading={loading}
-        error={error}
-        updateField={updateField}
-        toggleArray={toggleArray}
-        onSubmit={handleSubmit}
-      />
+        <OrderForm
+          formData={formData}
+          loading={loading}
+          error={error}
+          updateField={updateField}
+          toggleArray={toggleArray}
+          onSubmit={handleSubmit}
+        />
 
-      <div className="flex flex-col items-center justify-center min-h-[200px] border-2 border-dashed border-gray-300 rounded-4xl p-6 bg-white">
-        {savedOrder
-          ? <OrderLabel order={savedOrder} onReset={resetSaved} />
-          : <LabelPlaceholder />
-        }
+        <div className="flex flex-col items-center justify-center min-h-[200px] border-2 border-dashed border-gray-300 rounded-4xl p-6 bg-white">
+          {savedOrder
+            ? <OrderLabel order={savedOrder} onReset={resetSaved} />
+            : <LabelPlaceholder />
+          }
+        </div>
       </div>
-    </div>
+    </ProtectedRoute>
   )
 }
