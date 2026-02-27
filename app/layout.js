@@ -1,5 +1,12 @@
 import './globals.css'
 import Link from 'next/link'
+import { Analytics } from '@vercel/analytics/next'
+
+export const metadata = {
+  title: 'Atelier OS — Jewelry Production Management',
+  description: 'End-to-end jewelry production tracker: order entry, casting queue, workshop floor, and admin dashboard with real-time Kanban boards.',
+  icons: { icon: '/favicon.ico' },
+}
 
 export default function RootLayout({ children }) {
   return (
@@ -19,6 +26,7 @@ export default function RootLayout({ children }) {
           </div>
         </nav>
         <main>{children}</main>
+        <Analytics />
       </body>
     </html>
   )
