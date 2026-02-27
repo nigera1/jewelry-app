@@ -27,6 +27,15 @@ export const ArchiveTable = memo(function ArchiveTable({
   onSearchChange,
   onRefresh,
   onSelectJob,
+}: {
+  jobs: any[];
+  totalCount: number;
+  stageDurations: any;
+  loading: boolean;
+  isRefreshing: boolean;
+  onSearchChange: any;
+  onRefresh: any;
+  onSelectJob: any;
 }) {
   return (
     <div className="bg-white border-4 border-black rounded-[3rem] overflow-hidden shadow-[12px_12px_0px_0px_black] animate-in slide-in-from-bottom-4 duration-500">

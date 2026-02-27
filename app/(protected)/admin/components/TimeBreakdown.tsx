@@ -4,8 +4,8 @@ import { History } from 'lucide-react'
 import { supabase } from '@/lib/supabaseClient'
 import { formatDuration } from '@/app/(protected)/admin/utils'
 
-export const TimeBreakdown = memo(function TimeBreakdown({ order }) {
-  const [logs, setLogs] = useState([])
+export const TimeBreakdown = memo(function TimeBreakdown({ order }: { order: any }) {
+  const [logs, setLogs] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -16,9 +16,9 @@ export const TimeBreakdown = memo(function TimeBreakdown({ order }) {
       .eq('order_id', order.id)
       .order('created_at', { ascending: true })
       .then(({ data }) => {
-        if (!cancelled) { 
+        if (!cancelled) {
           setLogs(data ?? [])
-          setLoading(false) 
+          setLoading(false)
         }
       })
     return () => { cancelled = true }
@@ -29,36 +29,36 @@ export const TimeBreakdown = memo(function TimeBreakdown({ order }) {
     const endTime = order.current_stage === 'Completed'
       ? new Date(order.updated_at).getTime()
       : Date.now()
-    
+
     const totalSeconds = Math.max(0, Math.floor((endTime - startTime) / 1000))
-    const timeline = []
+    const timeline: any[] = []
     let prevEnd = startTime
 
     for (const log of logs) {
       const logTime = new Date(log.created_at).getTime()
-      
+
       // 🛡️ SAFETY CHECK: The "Dummy Filter"
       // If duration is > 90 days (7,776,000s), it's the 56-year bug. We force it to 0.
       const rawSecs = log.duration_seconds || 0
       const stageSecs = rawSecs > 7776000 ? 0 : rawSecs
-      
+
       const stageStart = logTime - (stageSecs * 1000)
       const stageName = (log.previous_stage || log.new_stage || 'Unknown').trim()
 
       const waitSecs = Math.max(0, Math.floor((stageStart - prevEnd) / 1000))
-      
+
       if (waitSecs > 0) {
-        timeline.push({ 
-          type: 'wait', name: 'Waiting', seconds: waitSecs, 
-          from: new Date(prevEnd), to: new Date(stageStart) 
+        timeline.push({
+          type: 'wait', name: 'Waiting', seconds: waitSecs,
+          from: new Date(prevEnd), to: new Date(stageStart)
         })
       }
-      
+
       if (stageSecs >= 0) {
-        timeline.push({ 
-          type: 'stage', name: stageName, seconds: stageSecs, 
-          from: new Date(stageStart), to: new Date(logTime), 
-          staff: log.staff_name, isRedo: log.action === 'REJECTED' 
+        timeline.push({
+          type: 'stage', name: stageName, seconds: stageSecs,
+          from: new Date(stageStart), to: new Date(logTime),
+          staff: log.staff_name, isRedo: log.action === 'REJECTED'
         })
       }
       prevEnd = logTime
@@ -73,7 +73,7 @@ export const TimeBreakdown = memo(function TimeBreakdown({ order }) {
     const activeSeconds = timeline.filter(t => t.type === 'stage').reduce((s, t) => s + t.seconds, 0)
     const waitingSeconds = timeline.filter(t => t.type === 'wait').reduce((s, t) => s + t.seconds, 0)
 
-    const summary = logs.reduce((acc, log) => {
+    const summary = logs.reduce((acc: any, log: any) => {
       const stage = (log.previous_stage || log.new_stage || 'Unknown').trim()
       const rawSecs = log.duration_seconds || 0
       const safeSecs = rawSecs > 7776000 ? 0 : rawSecs // Apply safety here too

@@ -7,8 +7,8 @@ import { supabase } from '@/lib/supabaseClient'
  * Fetches orders and production_logs, then derives all KPIs client-side.
  */
 export function useAnalytics() {
-    const [orders, setOrders] = useState([])
-    const [logs, setLogs] = useState([])
+    const [orders, setOrders] = useState<any[]>([])
+    const [logs, setLogs] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState(null)
 
@@ -42,7 +42,7 @@ export function useAnalytics() {
 
     // Orders per stage
     const ordersByStage = useMemo(() => {
-        const map = {}
+        const map: Record<string, number> = {}
         for (const o of orders) {
             const stage = o.current_stage || 'Unknown'
             map[stage] = (map[stage] || 0) + 1
@@ -55,7 +55,7 @@ export function useAnalytics() {
     // Average completion time (seconds)
     const avgCompletionTime = useMemo(() => {
         const completedIds = new Set(completedOrders.map(o => o.id))
-        const totals = {}
+        const totals: Record<string, number> = {}
         for (const log of logs) {
             if (completedIds.has(log.order_id)) {
                 totals[log.order_id] = (totals[log.order_id] || 0) + (Number(log.duration_seconds) || 0)
@@ -68,7 +68,7 @@ export function useAnalytics() {
 
     // Average duration per stage (seconds)
     const avgDurationByStage = useMemo(() => {
-        const stageData = {}
+        const stageData: Record<string, { total: number, count: number }> = {}
         for (const log of logs) {
             const stage = log.previous_stage
             const secs = Number(log.duration_seconds) || 0
@@ -84,7 +84,7 @@ export function useAnalytics() {
 
     // Staff leaderboard (total work time, number of moves)
     const staffStats = useMemo(() => {
-        const map = {}
+        const map: Record<string, { totalTime: number, moves: number }> = {}
         for (const log of logs) {
             const name = log.staff_name || 'Unknown'
             if (!map[name]) map[name] = { totalTime: 0, moves: 0 }
@@ -98,7 +98,7 @@ export function useAnalytics() {
 
     // Orders by metal type
     const ordersByMetal = useMemo(() => {
-        const map = {}
+        const map: Record<string, number> = {}
         for (const o of orders) {
             const metal = o.metal || 'Unknown'
             map[metal] = (map[metal] || 0) + 1
@@ -109,7 +109,7 @@ export function useAnalytics() {
     // Daily order trend (last 30 days)
     const dailyTrend = useMemo(() => {
         const now = new Date()
-        const days = {}
+        const days: Record<string, number> = {}
         for (let i = 29; i >= 0; i--) {
             const d = new Date(now)
             d.setDate(d.getDate() - i)

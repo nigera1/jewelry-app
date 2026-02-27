@@ -3,7 +3,7 @@ import { memo } from 'react'
 import { X } from 'lucide-react'
 import { TimeBreakdown } from '@/app/(protected)/admin/components/TimeBreakdown' // ✅ Matches the Named Export
 
-export const OrderModal = memo(function OrderModal({ order, onClose }) {
+export const OrderModal = memo(function OrderModal({ order, onClose }: { order: any, onClose: any }) {
   if (!order) return null;
 
   return (

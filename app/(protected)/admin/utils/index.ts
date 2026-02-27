@@ -7,9 +7,9 @@
  * @param {number} wait - Milliseconds to delay
  * @returns {T & { cancel: () => void }}
  */
-export function debounce(func, wait) {
-  let timeout = null
-  function debounced(...args) {
+export function debounce(func: any, wait: number) {
+  let timeout: any = null
+  function debounced(...args: any[]) {
     clearTimeout(timeout)
     timeout = setTimeout(() => { timeout = null; func(...args) }, wait)
   }
@@ -27,15 +27,15 @@ export function debounce(func, wait) {
  * formatDuration(3725) // → "1h 2m"
  * formatDuration(0)    // → "0m"
  */
-export function formatDuration(seconds) {
+export function formatDuration(seconds: number) {
   if (!seconds || seconds <= 0) return '0m'
   if (seconds < 60) return '<1m'
   const days = Math.floor(seconds / 86400)
-  const hrs  = Math.floor((seconds % 86400) / 3600)
+  const hrs = Math.floor((seconds % 86400) / 3600)
   const mins = Math.floor((seconds % 3600) / 60)
   const parts = []
   if (days > 0) parts.push(`${days}d`)
-  if (hrs  > 0) parts.push(`${hrs}h`)
+  if (hrs > 0) parts.push(`${hrs}h`)
   if (mins > 0 || parts.length === 0) parts.push(`${mins}m`)
   return parts.join(' ')
 }
@@ -47,7 +47,7 @@ export function formatDuration(seconds) {
  * @param {string} end   - ISO date string
  * @returns {string}
  */
-export function calculateTotalTime(start, end) {
+export function calculateTotalTime(start: string, end: string) {
   if (!start || !end) return '---'
-  return formatDuration(Math.floor((new Date(end) - new Date(start)) / 1000))
+  return formatDuration(Math.floor((new Date(end).getTime() - new Date(start).getTime()) / 1000))
 }

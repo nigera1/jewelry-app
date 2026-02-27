@@ -11,7 +11,7 @@ import { ArrowRight, History, Search } from 'lucide-react'
  * @param {object[]} props.logs              - Filtered log entries (already searched).
  * @param {Function} props.onSearchChange    - `onChange` handler for the search input (debounced).
  */
-export const ActivityLog = memo(function ActivityLog({ logs, onSearchChange }) {
+export const ActivityLog = memo(function ActivityLog({ logs, onSearchChange }: { logs: any[], onSearchChange: any }) {
   return (
     <div className="bg-white border-4 border-black p-8 rounded-[2.5rem] shadow-[8px_8px_0px_0px_black]">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">

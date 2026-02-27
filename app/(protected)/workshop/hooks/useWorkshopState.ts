@@ -19,36 +19,36 @@ import { STAGES, STAFF_MEMBERS, COOLDOWN_MS } from '../constants'
  */
 export function useWorkshopState() {
   // ── UI State ──────────────────────────────────────────────────────────────
-  const [activeTab,      setActiveTab]      = useState('scanner')
-  const [searchId,       setSearchId]       = useState('')
-  const [scanMode,       setScanMode]       = useState('manual')
-  const [staffName,      setStaffName]      = useState(STAFF_MEMBERS[0])
-  const [loading,        setLoading]        = useState(false)
-  const [scanMessage,    setScanMessage]    = useState(null)
+  const [activeTab, setActiveTab] = useState('scanner')
+  const [searchId, setSearchId] = useState('')
+  const [scanMode, setScanMode] = useState('manual')
+  const [staffName, setStaffName] = useState(STAFF_MEMBERS[0])
+  const [loading, setLoading] = useState(false)
+  const [scanMessage, setScanMessage] = useState(null)
 
   // ── Order State ───────────────────────────────────────────────────────────
-  const [activeOrder,    setActiveOrder]    = useState(null)
+  const [activeOrder, setActiveOrder] = useState(null)
   const [showRejectMenu, setShowRejectMenu] = useState(false)
-  const [isExternal,     setIsExternal]     = useState(false)
-  const [manualStage,    setManualStage]    = useState('')
+  const [isExternal, setIsExternal] = useState(false)
+  const [manualStage, setManualStage] = useState('')
   const [lastRedoReason, setLastRedoReason] = useState(null)
   const [isTimerRunning, setIsTimerRunning] = useState(false)
 
   // ── Jobs List State ───────────────────────────────────────────────────────
-  const [activeJobs,  setActiveJobs]  = useState([])
+  const [activeJobs, setActiveJobs] = useState<any[]>([])
   const [jobsLoading, setJobsLoading] = useState(true)
 
   // ── Refs (stable values accessible inside callbacks without stale closures) ─
-  const cooldownsRef   = useRef({})  // { [orderId]: expiryTimestamp }
-  const processingRef  = useRef(false)
+  const cooldownsRef = useRef<Record<string, number>>({})  // { [orderId]: expiryTimestamp }
+  const processingRef = useRef(false)
   const activeOrderRef = useRef(null)
-  const staffNameRef   = useRef(staffName)
+  const staffNameRef = useRef(staffName)
 
   useEffect(() => { activeOrderRef.current = activeOrder }, [activeOrder])
-  useEffect(() => { staffNameRef.current   = staffName   }, [staffName])
+  useEffect(() => { staffNameRef.current = staffName }, [staffName])
 
   // ── Derived ───────────────────────────────────────────────────────────────
-  const rushJobs    = useMemo(() => activeJobs.filter((j) => j.is_rush), [activeJobs])
+  const rushJobs = useMemo(() => activeJobs.filter((j) => j.is_rush), [activeJobs])
   const visibleJobs = activeTab === 'rush' ? rushJobs : activeJobs
 
   // ── Scan message auto-dismiss ─────────────────────────────────────────────
@@ -125,28 +125,35 @@ export function useWorkshopState() {
     order,
     nextStage,
     action,
-    redoReason        = null,
-    durationSeconds   = 0,
+    redoReason = null,
+    durationSeconds = 0,
     isExternalOverride,
+  }: {
+    order: any;
+    nextStage: string;
+    action: string;
+    redoReason?: string | null;
+    durationSeconds?: number;
+    isExternalOverride?: boolean;
   }) => {
     const isExt = isExternalOverride ?? order.is_external
 
     await Promise.all([
       supabase.from('orders').update({
-        current_stage:     nextStage,
-        is_external:       isExt,
-        timer_started_at:  null,
+        current_stage: nextStage,
+        is_external: isExt,
+        timer_started_at: null,
         timer_accumulated: 0,
-        updated_at:        new Date().toISOString(),
+        updated_at: new Date().toISOString(),
       }).eq('id', order.id),
 
       supabase.from('production_logs').insert([{
-        order_id:         order.id,
-        staff_name:       staffNameRef.current,
+        order_id: order.id,
+        staff_name: staffNameRef.current,
         action,
-        previous_stage:   order.current_stage,
-        new_stage:        nextStage,
-        redo_reason:      redoReason,
+        previous_stage: order.current_stage,
+        new_stage: nextStage,
+        redo_reason: redoReason,
         duration_seconds: durationSeconds,
       }]),
     ])
@@ -167,10 +174,10 @@ export function useWorkshopState() {
     await Promise.all([
       supabase.from('orders').update({ timer_started_at: now }).eq('id', order.id),
       supabase.from('production_logs').insert([{
-        order_id:   order.id,
+        order_id: order.id,
         staff_name: staffNameRef.current,
-        action:     'STARTED',
-        new_stage:  order.current_stage,
+        action: 'STARTED',
+        new_stage: order.current_stage,
       }]),
     ])
   }, [isTimerRunning])
@@ -188,7 +195,7 @@ export function useWorkshopState() {
     )
 
     const currentIdx = STAGES.indexOf(order.current_stage)
-    const nextStage  =
+    const nextStage =
       currentIdx >= 0 && currentIdx < STAGES.length - 1
         ? STAGES[currentIdx + 1]
         : 'Completed'
@@ -237,10 +244,10 @@ export function useWorkshopState() {
         await Promise.all([
           supabase.from('orders').update({ timer_started_at: now }).eq('id', order.id),
           supabase.from('production_logs').insert([{
-            order_id:   order.id,
+            order_id: order.id,
             staff_name: staffNameRef.current,
-            action:     'STARTED',
-            new_stage:  order.current_stage,
+            action: 'STARTED',
+            new_stage: order.current_stage,
           }]),
         ])
         setScanMessage({ type: 'start', text: `▶️ STARTED: ${order.vtiger_id} at ${order.current_stage}` })
@@ -269,9 +276,9 @@ export function useWorkshopState() {
 
   const handleScan = useCallback(() =>
     processOrderId(searchId.toUpperCase().trim()),
-  [searchId, processOrderId])
+    [searchId, processOrderId])
 
-  const handleDecodedText = useCallback((text) => {
+  const handleDecodedText = useCallback((text: string) => {
     processOrderId(text.trim().toUpperCase())
     navigator.vibrate?.(200)
   }, [processOrderId])
@@ -284,7 +291,7 @@ export function useWorkshopState() {
     setLoading(true)
 
     const nextStage = isRejection ? 'Goldsmithing' : manualStage
-    const elapsed   = (order.timer_accumulated || 0) + (
+    const elapsed = (order.timer_accumulated || 0) + (
       order.timer_started_at
         ? Math.floor((Date.now() - new Date(order.timer_started_at).getTime()) / 1000)
         : 0
@@ -293,9 +300,9 @@ export function useWorkshopState() {
     await writeStageChange({
       order,
       nextStage,
-      action:             isRejection ? 'REJECTED' : 'COMPLETED',
-      redoReason:         reason,
-      durationSeconds:    elapsed,
+      action: isRejection ? 'REJECTED' : 'COMPLETED',
+      redoReason: reason,
+      durationSeconds: elapsed,
       isExternalOverride: isExternal,
     })
 
@@ -315,7 +322,7 @@ export function useWorkshopState() {
 
   // ── Stone received toggle ─────────────────────────────────────────────────
 
-  const handleToggleStone = useCallback(async (field, currentValue) => {
+  const handleToggleStone = useCallback(async (field: string, currentValue: boolean) => {
     const order = activeOrderRef.current
     if (!order) return
     const newValue = !currentValue
@@ -339,18 +346,18 @@ export function useWorkshopState() {
 
   return {
     // UI state
-    activeTab,     switchTab,
-    searchId,      setSearchId,
-    scanMode,      setScanMode,
-    staffName,     setStaffName,
+    activeTab, switchTab,
+    searchId, setSearchId,
+    scanMode, setScanMode,
+    staffName, setStaffName,
     loading,
     scanMessage,
 
     // Order state
-    activeOrder,   setActiveOrder,
+    activeOrder, setActiveOrder,
     showRejectMenu, setShowRejectMenu,
-    isExternal,    setIsExternal,
-    manualStage,   setManualStage,
+    isExternal, setIsExternal,
+    manualStage, setManualStage,
     lastRedoReason,
     isTimerRunning,
 

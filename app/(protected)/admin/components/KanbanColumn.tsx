@@ -14,7 +14,7 @@ import { Globe } from 'lucide-react'
  * @param {{ bg: string, border: string, text: string, accent: string }} props.color - Tailwind colour tokens.
  * @param {Function} props.onSelectJob   - Called with the full job object when a card is clicked.
  */
-export const KanbanColumn = memo(function KanbanColumn({ title, icon, jobs, color, onSelectJob }) {
+export const KanbanColumn = memo(function KanbanColumn({ title, icon, jobs, color, onSelectJob }: { title: string, icon: any, jobs: any[], color: any, onSelectJob: any }) {
   return (
     <div className={`${color.bg} border-4 ${color.border} rounded-[2rem] p-5 shadow-[6px_6px_0px_0px_black]`}>
       <div className={`flex items-center gap-2 ${color.text} mb-4 border-b-4 ${color.accent} pb-3 font-black uppercase text-xs tracking-tighter`}>

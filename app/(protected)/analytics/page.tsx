@@ -6,7 +6,7 @@ import {
     RefreshCw, ChevronRight, Award
 } from 'lucide-react'
 
-function formatDuration(seconds) {
+function formatDuration(seconds: number) {
     if (!seconds || seconds <= 0) return '—'
     const h = Math.floor(seconds / 3600)
     const m = Math.floor((seconds % 3600) / 60)
@@ -24,8 +24,8 @@ const STAGE_COLORS = {
     'Completed': { bg: 'bg-gray-500', light: 'bg-gray-50', text: 'text-gray-700' },
 }
 
-function getStageColor(stage) {
-    return STAGE_COLORS[stage] || { bg: 'bg-slate-400', light: 'bg-slate-50', text: 'text-slate-700' }
+function getStageColor(stage: string): { bg: string, light: string, text: string } {
+    return (STAGE_COLORS as Record<string, { bg: string, light: string, text: string }>)[stage] || { bg: 'bg-slate-400', light: 'bg-slate-50', text: 'text-slate-700' }
 }
 
 export default function AnalyticsPage() {

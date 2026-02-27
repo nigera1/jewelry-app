@@ -1,0 +1,59 @@
+app/(protected)/admin/components/ActivityLog.tsx(14,56): error TS2339: Property 'logs' does not exist on type '{}'.
+app/(protected)/admin/components/ActivityLog.tsx(14,62): error TS2339: Property 'onSearchChange' does not exist on type '{}'.
+app/(protected)/admin/components/ArchiveTable.tsx(22,3): error TS2339: Property 'jobs' does not exist on type '{}'.
+app/(protected)/admin/components/ArchiveTable.tsx(23,3): error TS2339: Property 'totalCount' does not exist on type '{}'.
+app/(protected)/admin/components/ArchiveTable.tsx(24,3): error TS2339: Property 'stageDurations' does not exist on type '{}'.
+app/(protected)/admin/components/ArchiveTable.tsx(25,3): error TS2339: Property 'loading' does not exist on type '{}'.
+app/(protected)/admin/components/ArchiveTable.tsx(26,3): error TS2339: Property 'isRefreshing' does not exist on type '{}'.
+app/(protected)/admin/components/ArchiveTable.tsx(27,3): error TS2339: Property 'onSearchChange' does not exist on type '{}'.
+app/(protected)/admin/components/ArchiveTable.tsx(28,3): error TS2339: Property 'onRefresh' does not exist on type '{}'.
+app/(protected)/admin/components/ArchiveTable.tsx(29,3): error TS2339: Property 'onSelectJob' does not exist on type '{}'.
+app/(protected)/admin/components/KanbanColumn.tsx(17,58): error TS2339: Property 'title' does not exist on type '{}'.
+app/(protected)/admin/components/KanbanColumn.tsx(17,65): error TS2339: Property 'icon' does not exist on type '{}'.
+app/(protected)/admin/components/KanbanColumn.tsx(17,71): error TS2339: Property 'jobs' does not exist on type '{}'.
+app/(protected)/admin/components/KanbanColumn.tsx(17,77): error TS2339: Property 'color' does not exist on type '{}'.
+app/(protected)/admin/components/KanbanColumn.tsx(17,84): error TS2339: Property 'onSelectJob' does not exist on type '{}'.
+app/(protected)/admin/components/OrderModal.tsx(6,54): error TS2339: Property 'order' does not exist on type '{}'.
+app/(protected)/admin/components/OrderModal.tsx(6,61): error TS2339: Property 'onClose' does not exist on type '{}'.
+app/(protected)/admin/components/OrderModal.tsx(35,24): error TS2322: Type '{ order: any; }' is not assignable to type 'IntrinsicAttributes & object'.
+  Property 'order' does not exist on type 'IntrinsicAttributes & object'.
+app/(protected)/admin/components/TimeBreakdown.tsx(7,60): error TS2339: Property 'order' does not exist on type '{}'.
+app/(protected)/admin/page.tsx(39,21): error TS2322: Type '{ order: any; onClose: () => void; }' is not assignable to type 'IntrinsicAttributes & object'.
+  Property 'order' does not exist on type 'IntrinsicAttributes & object'.
+app/(protected)/admin/page.tsx(74,17): error TS2322: Type '{ key: string; title: string; icon: Element; jobs: any; color: { bg: string; border: string; text: string; accent: string; }; onSelectJob: (job: any) => void; }' is not assignable to type 'IntrinsicAttributes & object'.
+  Property 'title' does not exist on type 'IntrinsicAttributes & object'.
+app/(protected)/admin/page.tsx(83,13): error TS2322: Type '{ logs: any[]; onSearchChange: (e: any) => void; }' is not assignable to type 'IntrinsicAttributes & object'.
+  Property 'logs' does not exist on type 'IntrinsicAttributes & object'.
+app/(protected)/admin/page.tsx(89,11): error TS2322: Type '{ jobs: any[]; totalCount: number; stageDurations: {}; loading: boolean; isRefreshing: boolean; onSearchChange: (e: any) => void; onRefresh: () => Promise<void>; onSelectJob: (job: any) => void; }' is not assignable to type 'IntrinsicAttributes & object'.
+  Property 'jobs' does not exist on type 'IntrinsicAttributes & object'.
+app/(protected)/admin/utils/index.ts(52,37): error TS2362: The left-hand side of an arithmetic operation must be of type 'any', 'number', 'bigint' or an enum type.
+app/(protected)/admin/utils/index.ts(52,53): error TS2363: The right-hand side of an arithmetic operation must be of type 'any', 'number', 'bigint' or an enum type.
+app/(protected)/analytics/hooks/useAnalytics.ts(52,29): error TS2362: The left-hand side of an arithmetic operation must be of type 'any', 'number', 'bigint' or an enum type.
+app/(protected)/analytics/hooks/useAnalytics.ts(52,39): error TS2363: The right-hand side of an arithmetic operation must be of type 'any', 'number', 'bigint' or an enum type.
+app/(protected)/analytics/hooks/useAnalytics.ts(64,58): error TS2365: Operator '>' cannot be applied to types 'unknown' and 'number'.
+app/(protected)/analytics/hooks/useAnalytics.ts(66,16): error TS2362: The left-hand side of an arithmetic operation must be of type 'any', 'number', 'bigint' or an enum type.
+app/(protected)/analytics/hooks/useAnalytics.ts(66,40): error TS2365: Operator '+' cannot be applied to types 'unknown' and 'unknown'.
+app/(protected)/analytics/hooks/useAnalytics.ts(81,51): error TS2339: Property 'total' does not exist on type 'unknown'.
+app/(protected)/analytics/hooks/useAnalytics.ts(81,61): error TS2339: Property 'count' does not exist on type 'unknown'.
+app/(protected)/analytics/hooks/useAnalytics.ts(81,77): error TS2339: Property 'total' does not exist on type 'unknown'.
+app/(protected)/analytics/hooks/useAnalytics.ts(81,93): error TS2339: Property 'count' does not exist on type 'unknown'.
+app/(protected)/analytics/hooks/useAnalytics.ts(95,42): error TS2698: Spread types may only be created from object types.
+app/(protected)/analytics/page.tsx(40,36): error TS2345: Argument of type 'unknown' is not assignable to parameter of type 'number'.
+app/(protected)/analytics/page.tsx(117,64): error TS2362: The left-hand side of an arithmetic operation must be of type 'any', 'number', 'bigint' or an enum type.
+app/(protected)/analytics/page.tsx(123,53): error TS2322: Type 'unknown' is not assignable to type 'ReactNode'.
+app/(protected)/analytics/page.tsx(184,71): error TS2362: The left-hand side of an arithmetic operation must be of type 'any', 'number', 'bigint' or an enum type.
+app/(protected)/analytics/page.tsx(188,58): error TS2322: Type 'unknown' is not assignable to type 'ReactNode'.
+app/(protected)/analytics/page.tsx(254,75): error TS2362: The left-hand side of an arithmetic operation must be of type 'any', 'number', 'bigint' or an enum type.
+app/(protected)/analytics/page.tsx(268,104): error TS2322: Type 'unknown' is not assignable to type 'ReactNode'.
+app/(protected)/page.tsx(35,21): error TS2322: Type '{ order: any; onClose: () => void; }' is not assignable to type 'IntrinsicAttributes & object'.
+  Property 'order' does not exist on type 'IntrinsicAttributes & object'.
+app/(protected)/page.tsx(105,19): error TS2322: Type '{ title: string; icon: Element; jobs: any; color: { bg: string; border: string; text: string; accent: string; }; onSelectJob: (job: any) => void; }' is not assignable to type 'IntrinsicAttributes & object'.
+  Property 'title' does not exist on type 'IntrinsicAttributes & object'.
+app/(protected)/page.tsx(116,13): error TS2322: Type '{ logs: any[]; onSearchChange: (e: any) => void; }' is not assignable to type 'IntrinsicAttributes & object'.
+  Property 'logs' does not exist on type 'IntrinsicAttributes & object'.
+app/(protected)/page.tsx(125,11): error TS2322: Type '{ jobs: any[]; totalCount: number; stageDurations: {}; loading: boolean; isRefreshing: boolean; onSearchChange: (e: any) => void; onRefresh: () => Promise<void>; onSelectJob: (job: any) => void; }' is not assignable to type 'IntrinsicAttributes & object'.
+  Property 'jobs' does not exist on type 'IntrinsicAttributes & object'.
+app/(protected)/workshop/hooks/useWorkshopState.ts(196,28): error TS2345: Argument of type '{ order: any; nextStage: string; action: string; durationSeconds: any; }' is not assignable to parameter of type '{ order: any; nextStage: any; action: any; redoReason?: any; durationSeconds?: number; isExternalOverride: any; }'.
+  Property 'isExternalOverride' is missing in type '{ order: any; nextStage: string; action: string; durationSeconds: any; }' but required in type '{ order: any; nextStage: any; action: any; redoReason?: any; durationSeconds?: number; isExternalOverride: any; }'.
+app/(protected)/workshop/hooks/useWorkshopState.ts(254,32): error TS2345: Argument of type '{ order: any; nextStage: string; action: string; durationSeconds: any; }' is not assignable to parameter of type '{ order: any; nextStage: any; action: any; redoReason?: any; durationSeconds?: number; isExternalOverride: any; }'.
+  Property 'isExternalOverride' is missing in type '{ order: any; nextStage: string; action: string; durationSeconds: any; }' but required in type '{ order: any; nextStage: any; action: any; redoReason?: any; durationSeconds?: number; isExternalOverride: any; }'.
