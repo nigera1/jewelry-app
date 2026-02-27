@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabaseClient'
+import { signIn, signUp } from '@/lib/auth'
 import { useAuth } from '@/components/AuthProvider'
 import { Loader2 } from 'lucide-react'
 
@@ -14,7 +14,7 @@ export default function LoginPage() {
     const { user, loading } = useAuth()
     const router = useRouter()
 
-    // Redirect if already logged in
+    // Redirect if already logged in (client-side fallback, though middleware handles it)
     useEffect(() => {
         if (!loading && user) {
             router.replace('/')
@@ -26,23 +26,23 @@ export default function LoginPage() {
         setError('')
         setSubmitting(true)
 
-        const trimmedEmail = email.trim()
-
         try {
             if (isSignUp) {
-                const { error } = await supabase.auth.signUp({ email: trimmedEmail, password })
-                if (error) throw error
+                const { error } = await signUp(email, password)
+                if (error) throw new Error(error)
             } else {
-                const { error } = await supabase.auth.signInWithPassword({ email: trimmedEmail, password })
-                if (error) throw error
+                const { error } = await signIn(email, password)
+                if (error) throw new Error(error)
+
+                // On successful login, force a hard navigation to / so middleware runs
+                router.push('/')
+                router.refresh()
             }
-            // Auth state change listener in AuthProvider will handle redirect
         } catch (err) {
             setError(err.message)
-        } finally {
-            setSubmitting(false)
+            setSubmitting(false) // Only stop submitting on error, otherwise let navigation happen
         }
-    }, [email, password, isSignUp])
+    }, [email, password, isSignUp, router])
 
     const handleToggleMode = useCallback(() => {
         setIsSignUp(prev => !prev)
@@ -50,7 +50,7 @@ export default function LoginPage() {
     }, [])
 
     // Show nothing while checking auth
-    if (loading || user) {
+    if (loading) {
         return (
             <div className="min-h-screen bg-black flex items-center justify-center">
                 <div className="w-8 h-8 border-4 border-white border-t-transparent rounded-full animate-spin" />

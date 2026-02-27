@@ -1,6 +1,6 @@
 import { memo } from 'react'
 import { Clock, RotateCcw, Search } from 'lucide-react'
-import { formatDuration, calculateTotalTime } from '@/app/admin/utils'
+import { formatDuration, calculateTotalTime } from '@/app/(protected)/admin/utils'
 
 /**
  * Completed jobs archive — searchable table with per-stage duration columns.

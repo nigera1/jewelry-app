@@ -2,7 +2,7 @@
 import { memo, useState, useEffect, useMemo } from 'react'
 import { History } from 'lucide-react'
 import { supabase } from '@/lib/supabaseClient'
-import { formatDuration } from '@/app/admin/utils'
+import { formatDuration } from '@/app/(protected)/admin/utils'
 
 export const TimeBreakdown = memo(function TimeBreakdown({ order }) {
   const [logs, setLogs] = useState([])

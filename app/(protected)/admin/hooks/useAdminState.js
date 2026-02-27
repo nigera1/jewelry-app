@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabaseClient'
-import { debounce } from '@/app/admin/utils'
-import { KANBAN_COLUMNS } from '@/app/admin/constants'
+import { debounce } from '@/app/(protected)/admin/utils'
+import { KANBAN_COLUMNS } from '@/app/(protected)/admin/constants'
 
 /**
  * Central state and data-fetching logic for the Admin page.

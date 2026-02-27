@@ -1,11 +1,11 @@
 import { Gem, Layers, Type, Sparkles, Circle, Ruler, PackagePlus } from 'lucide-react'
-import { ToggleButton, CheckboxGroup } from '@/app/order-entry/components/FormControls'
+import { ToggleButton, CheckboxGroup } from '@/app/(protected)/order-entry/components/FormControls'
 import {
   SETTING_CENTRAL_OPTIONS,
   SETTING_SMALL_OPTIONS,
   FINISH_OPTIONS,
   METAL_OPTIONS,
-} from '@/app/order-entry/constants'
+} from '@/app/(protected)/order-entry/constants'
 
 export function OrderForm({ formData, loading, error, updateField, toggleArray, onSubmit }) {
   const labelStyle = "text-xs font-black uppercase text-gray-400 mb-0.5 block";

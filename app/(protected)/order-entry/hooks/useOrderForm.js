@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react'
 import { supabase } from '@/lib/supabaseClient'
-import { INITIAL_FORM } from '@/app/order-entry/constants'
+import { INITIAL_FORM } from '@/app/(protected)/order-entry/constants'
 
 /**
  * Manages all form state and submission logic for the order entry page.

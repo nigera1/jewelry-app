@@ -1,7 +1,7 @@
 'use client'
 import { memo } from 'react'
 import { X } from 'lucide-react'
-import { TimeBreakdown } from '@/app/admin/components/TimeBreakdown' // ✅ Matches the Named Export
+import { TimeBreakdown } from '@/app/(protected)/admin/components/TimeBreakdown' // ✅ Matches the Named Export
 
 export const OrderModal = memo(function OrderModal({ order, onClose }) {
   if (!order) return null;

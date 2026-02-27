@@ -1,6 +1,5 @@
 'use client'
 import { Suspense, useState, useEffect } from 'react'
-import { ProtectedRoute } from '@/components/ProtectedRoute'
 import { useWorkshopState } from './hooks/useWorkshopState'
 import { ScanMessage } from './components/ScanMessage'
 import { TabBar } from './components/TabBar'
@@ -113,14 +112,12 @@ function WorkshopContent() {
 
 export default function WorkshopPage() {
   return (
-    <ProtectedRoute>
-      <Suspense fallback={
-        <div className="p-20 text-center font-black animate-pulse text-slate-900">
-          SYNCING WORKSHOP…
-        </div>
-      }>
-        <WorkshopContent />
-      </Suspense>
-    </ProtectedRoute>
+    <Suspense fallback={
+      <div className="p-20 text-center font-black animate-pulse text-slate-900">
+        SYNCING WORKSHOP…
+      </div>
+    }>
+      <WorkshopContent />
+    </Suspense>
   )
 }
