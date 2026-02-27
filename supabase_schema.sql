@@ -93,23 +93,40 @@ CREATE INDEX IF NOT EXISTS idx_production_logs_created_at
 -- Orders
 ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Allow public select on orders"
-    ON public.orders FOR SELECT USING (true);
+-- Reading orders requires authentication (Admin/Workshop/Casting users)
+CREATE POLICY "Allow authenticated select on orders"
+    ON public.orders FOR SELECT
+    USING (auth.uid() IS NOT NULL);
 
+-- Inserting orders can be done by anyone (Order Entry page is public)
 CREATE POLICY "Allow public insert on orders"
-    ON public.orders FOR INSERT WITH CHECK (true);
+    ON public.orders FOR INSERT 
+    WITH CHECK (true);
 
-CREATE POLICY "Allow public update on orders"
-    ON public.orders FOR UPDATE USING (true) WITH CHECK (true);
+-- Updating orders requires authentication
+CREATE POLICY "Allow authenticated update on orders"
+    ON public.orders FOR UPDATE
+    USING (auth.uid() IS NOT NULL)
+    WITH CHECK (auth.uid() IS NOT NULL);
+
+-- Deleting orders requires authentication
+CREATE POLICY "Allow authenticated delete on orders"
+    ON public.orders FOR DELETE
+    USING (auth.uid() IS NOT NULL);
 
 -- Production logs
 ALTER TABLE public.production_logs ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Allow public select on production_logs"
-    ON public.production_logs FOR SELECT USING (true);
+-- Reading logs requires authentication
+CREATE POLICY "Allow authenticated select on production_logs"
+    ON public.production_logs FOR SELECT
+    USING (auth.uid() IS NOT NULL);
 
-CREATE POLICY "Allow public insert on production_logs"
-    ON public.production_logs FOR INSERT WITH CHECK (true);
+-- Inserting logs requires authentication
+CREATE POLICY "Allow authenticated insert on production_logs"
+    ON public.production_logs FOR INSERT
+    WITH CHECK (auth.uid() IS NOT NULL);
+
 
 -- ─── 4. STORAGE BUCKET ─────────────────────────────────────────────────────
 
