@@ -14,15 +14,17 @@ import { OrderLabel, LabelPlaceholder } from '@/app/(protected)/order-entry/comp
  */
 export default function OrderEntryPage() {
   const {
-    formData,
+    form,
     savedOrder,
     loading,
     error,
     updateField,
     toggleArray,
-    handleSubmit,
+    onSubmit,
     resetSaved,
   } = useOrderForm()
+
+  const formData = form.watch()
 
   return (
     <div className="max-w-5xl mx-auto p-4 grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -33,7 +35,7 @@ export default function OrderEntryPage() {
         error={error}
         updateField={updateField}
         toggleArray={toggleArray}
-        onSubmit={handleSubmit}
+        onSubmit={onSubmit}
       />
 
       <div className="flex flex-col items-center justify-center min-h-[200px] border-2 border-dashed border-gray-300 rounded-4xl p-6 bg-white">

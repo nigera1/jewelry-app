@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { supabase } from '@/lib/supabaseClient'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { STAGES, STAFF_MEMBERS, COOLDOWN_MS } from '../constants'
 
 /**
@@ -34,9 +35,7 @@ export function useWorkshopState() {
   const [lastRedoReason, setLastRedoReason] = useState(null)
   const [isTimerRunning, setIsTimerRunning] = useState(false)
 
-  // ── Jobs List State ───────────────────────────────────────────────────────
-  const [activeJobs, setActiveJobs] = useState<any[]>([])
-  const [jobsLoading, setJobsLoading] = useState(true)
+  const queryClient = useQueryClient()
 
   // ── Refs (stable values accessible inside callbacks without stale closures) ─
   const cooldownsRef = useRef<Record<string, number>>({})  // { [orderId]: expiryTimestamp }
@@ -47,8 +46,26 @@ export function useWorkshopState() {
   useEffect(() => { activeOrderRef.current = activeOrder }, [activeOrder])
   useEffect(() => { staffNameRef.current = staffName }, [staffName])
 
+  // ── Data fetching ─────────────────────────────────────────────────────────
+
+  const { data: activeJobsData, isLoading: jobsLoading } = useQuery({
+    queryKey: ['workshop-jobs'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('orders')
+        .select('*')
+        .neq('current_stage', 'Completed')
+        .order('created_at', { ascending: false })
+      if (error) throw new Error(error.message)
+      return data ?? []
+    },
+    refetchInterval: 30000, // Background refresh every 30s
+  })
+
+  const activeJobs = activeJobsData ?? []
+
   // ── Derived ───────────────────────────────────────────────────────────────
-  const rushJobs = useMemo(() => activeJobs.filter((j) => j.is_rush), [activeJobs])
+  const rushJobs = useMemo(() => activeJobs.filter((j: any) => j.is_rush), [activeJobs])
   const visibleJobs = activeTab === 'rush' ? rushJobs : activeJobs
 
   // ── Scan message auto-dismiss ─────────────────────────────────────────────
@@ -94,20 +111,7 @@ export function useWorkshopState() {
     setTimeout(() => { delete cooldownsRef.current[orderId] }, COOLDOWN_MS)
   }, [])
 
-  // ── Data fetching ─────────────────────────────────────────────────────────
 
-  const fetchActiveJobs = useCallback(async () => {
-    const { data } = await supabase
-      .from('orders')
-      .select('*')
-      .neq('current_stage', 'Completed')
-      .order('created_at', { ascending: false })
-
-    if (data) setActiveJobs(data)
-    setJobsLoading(false)
-  }, [])
-
-  useEffect(() => { fetchActiveJobs() }, [fetchActiveJobs])
 
   // ── Core DB helper ────────────────────────────────────────────────────────
   /**
@@ -157,7 +161,12 @@ export function useWorkshopState() {
         duration_seconds: durationSeconds,
       }]),
     ])
-  }, [])
+
+    // Invalidate queries to refresh lists
+    queryClient.invalidateQueries({ queryKey: ['workshop-jobs'] })
+    queryClient.invalidateQueries({ queryKey: ['admin'] })
+    queryClient.invalidateQueries({ queryKey: ['analytics'] })
+  }, [queryClient])
 
   // ── Timer: START ──────────────────────────────────────────────────────────
 
@@ -205,9 +214,8 @@ export function useWorkshopState() {
     setIsTimerRunning(false)
     setActiveOrder(null)
     setOrderCooldown(order.id)
-    setScanMessage({ type: 'success', text: `✅ Completed ${order.vtiger_id}. Moved to ${nextStage}` })
-    fetchActiveJobs()
-  }, [isTimerRunning, writeStageChange, setOrderCooldown, fetchActiveJobs])
+    setScanMessage({ type: 'success', text: `✅ Completed ${order.vtiger_id}. Moved to ${nextStage}` } as any)
+  }, [isTimerRunning, writeStageChange, setOrderCooldown])
 
   // ── Barcode scan handler (start on 1st scan, complete on 2nd) ────────────
 
@@ -259,20 +267,19 @@ export function useWorkshopState() {
 
         const nextStage = STAGES[STAGES.indexOf(order.current_stage) + 1] || 'Completed'
         await writeStageChange({ order, nextStage, action: 'COMPLETED', durationSeconds: elapsed })
-        setScanMessage({ type: 'success', text: `✅ COMPLETED: ${order.vtiger_id}. Moved to ${nextStage}` })
-        fetchActiveJobs()
+        setScanMessage({ type: 'success', text: `✅ COMPLETED: ${order.vtiger_id}. Moved to ${nextStage}` } as any)
       }
 
       setOrderCooldown(order.id)
       setSearchId('')
     } catch (err) {
       console.error('[processOrderId]', err)
-      setScanMessage({ type: 'error', text: 'An unexpected error occurred. Please try again.' })
+      setScanMessage({ type: 'error', text: 'An unexpected error occurred. Please try again.' } as any)
     } finally {
       setLoading(false)
       processingRef.current = false
     }
-  }, [isOrderInCooldown, writeStageChange, setOrderCooldown, fetchActiveJobs])
+  }, [isOrderInCooldown, writeStageChange, setOrderCooldown])
 
   const handleScan = useCallback(() =>
     processOrderId(searchId.toUpperCase().trim()),
@@ -306,19 +313,13 @@ export function useWorkshopState() {
       isExternalOverride: isExternal,
     })
 
-    // Optimistic list update; fetchActiveJobs will reconcile with the server
-    setActiveJobs((prev) =>
-      prev
-        .map((j) => j.id === order.id ? { ...j, current_stage: nextStage } : j)
-        .filter((j) => j.current_stage !== 'Completed')
-    )
-    fetchActiveJobs()
+    // We rely on React Query refetch (due to query invalidation in writeStageChange) to update the list
     setOrderCooldown(order.id)
     setActiveOrder(null)
     setShowRejectMenu(false)
-    setScanMessage({ type: 'success', text: `✅ Moved to ${nextStage}` })
+    setScanMessage({ type: 'success', text: `✅ Moved to ${nextStage}` } as any)
     setLoading(false)
-  }, [manualStage, isExternal, writeStageChange, setOrderCooldown, fetchActiveJobs])
+  }, [manualStage, isExternal, writeStageChange, setOrderCooldown])
 
   // ── Stone received toggle ─────────────────────────────────────────────────
 

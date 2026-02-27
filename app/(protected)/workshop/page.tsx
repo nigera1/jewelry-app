@@ -1,5 +1,5 @@
 'use client'
-import { Suspense, useState, useEffect } from 'react'
+import { Suspense, useSyncExternalStore } from 'react'
 import { useWorkshopState } from './hooks/useWorkshopState'
 import { ScanMessage } from './components/ScanMessage'
 import { TabBar } from './components/TabBar'
@@ -11,11 +11,11 @@ import { printQRCode } from './utils/printQRCode'
 
 function WorkshopContent() {
   // 1. PREVENTION: Avoid hydration mismatch/client exceptions
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const mounted = useSyncExternalStore(
+    () => () => { },
+    () => true,
+    () => false,
+  );
 
   const {
     activeTab, switchTab, searchId, setSearchId,

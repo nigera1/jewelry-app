@@ -59,7 +59,7 @@ export default function AnalyticsPage() {
                     </div>
                 </div>
                 <button
-                    onClick={fetchData}
+                    onClick={() => fetchData()}
                     disabled={loading}
                     className="flex items-center gap-2 bg-black text-white px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-wide hover:bg-gray-800 transition-colors disabled:opacity-40"
                 >

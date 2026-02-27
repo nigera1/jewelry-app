@@ -1,28 +1,23 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
+import { useQuery } from '@tanstack/react-query'
 import { Factory, CheckCircle2, Timer, PackageSearch, ArrowUpRight, Loader2 } from 'lucide-react'
 
 export default function CastingPage() {
-  const [jobs, setJobs] = useState([])
-  const [loading, setLoading] = useState(true)
+  const { data: jobs = [], isLoading: loading, refetch } = useQuery({
+    queryKey: ['casting-jobs'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('orders')
+        .select('*')
+        .eq('current_stage', 'At Casting')
+        .order('created_at', { ascending: true })
+      if (error) throw error
+      return data ?? []
+    },
+  })
   const [processingId, setProcessingId] = useState(null)
-
-  useEffect(() => {
-    fetchCastingJobs()
-  }, [])
-
-  const fetchCastingJobs = async () => {
-    setLoading(true)
-    const { data, error } = await supabase
-      .from('orders')
-      .select('*')
-      .eq('current_stage', 'At Casting')
-      .order('created_at', { ascending: true })
-
-    if (data) setJobs(data)
-    setLoading(false)
-  }
 
   const approveToWorkshop = async (job) => {
     setProcessingId(job.id)
@@ -42,8 +37,8 @@ export default function CastingPage() {
         new_stage: 'Goldsmithing'
       }])
 
-      // 3. Update local UI
-      setJobs(jobs.filter(j => j.id !== job.id))
+      // 3. Refresh the list
+      await refetch()
     }
     setProcessingId(null)
   }

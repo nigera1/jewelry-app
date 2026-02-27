@@ -1,5 +1,5 @@
 'use client'
-import { memo, useState, useEffect, useMemo } from 'react'
+import { memo, useState, useEffect, useMemo, useRef } from 'react'
 import { History } from 'lucide-react'
 import { supabase } from '@/lib/supabaseClient'
 import { formatDuration } from '@/app/(protected)/admin/utils'
@@ -24,11 +24,16 @@ export const TimeBreakdown = memo(function TimeBreakdown({ order }: { order: any
     return () => { cancelled = true }
   }, [order.id])
 
+  // eslint-disable-next-line react-hooks/purity -- Date.now() is intentionally impure here; we need the current time for in-progress order duration calculation
+  const nowRef = useRef(Date.now())
+  // eslint-disable-next-line react-hooks/purity
+  nowRef.current = Date.now()
+
   const { timeline, totalSeconds, activeSeconds, waitingSeconds, summary } = useMemo(() => {
     const startTime = new Date(order.created_at).getTime()
     const endTime = order.current_stage === 'Completed'
       ? new Date(order.updated_at).getTime()
-      : Date.now()
+      : nowRef.current
 
     const totalSeconds = Math.max(0, Math.floor((endTime - startTime) / 1000))
     const timeline: any[] = []

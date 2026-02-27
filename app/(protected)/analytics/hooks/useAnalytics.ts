@@ -2,36 +2,31 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 
+import { useQuery } from '@tanstack/react-query'
+
 /**
  * Custom hook for the analytics dashboard.
  * Fetches orders and production_logs, then derives all KPIs client-side.
  */
 export function useAnalytics() {
-    const [orders, setOrders] = useState<any[]>([])
-    const [logs, setLogs] = useState<any[]>([])
-    const [loading, setLoading] = useState(true)
-    const [error, setError] = useState(null)
-
-    const fetchData = useCallback(async () => {
-        setLoading(true)
-        setError(null)
-        try {
+    const { data, isLoading, error: queryError, refetch } = useQuery({
+        queryKey: ['analytics'],
+        queryFn: async () => {
             const [ordersRes, logsRes] = await Promise.all([
                 supabase.from('orders').select('*').order('created_at', { ascending: false }),
                 supabase.from('production_logs').select('*').order('created_at', { ascending: false }),
             ])
             if (ordersRes.error) throw new Error(ordersRes.error.message)
             if (logsRes.error) throw new Error(logsRes.error.message)
-            setOrders(ordersRes.data ?? [])
-            setLogs(logsRes.data ?? [])
-        } catch (err) {
-            setError(err.message)
-        } finally {
-            setLoading(false)
+            return { orders: ordersRes.data ?? [], logs: logsRes.data ?? [] }
         }
-    }, [])
+    })
 
-    useEffect(() => { fetchData() }, [fetchData])
+    const orders = data?.orders ?? []
+    const logs = data?.logs ?? []
+    const loading = isLoading
+    const error = queryError ? queryError.message : null
+    const fetchData = refetch
 
     // ── Derived KPIs ──
 

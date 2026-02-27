@@ -1,5 +1,6 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react'
 import { supabase } from '@/lib/supabaseClient'
+import { useQuery } from '@tanstack/react-query'
 import { debounce } from '@/app/(protected)/admin/utils'
 import { KANBAN_COLUMNS } from '@/app/(protected)/admin/constants'
 
@@ -23,25 +24,22 @@ export function useAdminState() {
   const [activeTab, setActiveTab] = useState('live')
 
   // ── Data ──────────────────────────────────────────────────────────────────
-  const [logs,           setLogs]           = useState([])
-  const [wipJobs,        setWipJobs]        = useState([])
-  const [completedJobs,  setCompletedJobs]  = useState([])
+  const [logs, setLogs] = useState([])
+  const [wipJobs, setWipJobs] = useState([])
+  const [completedJobs, setCompletedJobs] = useState([])
   const [stageDurations, setStageDurations] = useState({})
 
   // ── UI state ──────────────────────────────────────────────────────────────
-  const [loading,       setLoading]       = useState(true)
-  const [isRefreshing,  setIsRefreshing]  = useState(false)
-  const [error,         setError]         = useState(null)
-  const [selectedOrder, setSelectedOrder] = useState(null)
+  const [selectedOrder, setSelectedOrder] = useState<any>(null)
 
   // ── Search terms (internal; exposed only as debounced setters) ────────────
-  const [searchTerm,    setSearchTerm]    = useState('')
+  const [searchTerm, setSearchTerm] = useState('')
   const [logSearchTerm, setLogSearchTerm] = useState('')
 
   // ── Stable debounced setters ──────────────────────────────────────────────
   // Stored in refs so the same instance is reused across renders and cleanup
   // always cancels the right timer.
-  const debouncedSetSearch    = useRef(debounce(setSearchTerm,    300))
+  const debouncedSetSearch = useRef(debounce(setSearchTerm, 300))
   const debouncedSetLogSearch = useRef(debounce(setLogSearchTerm, 300))
 
   useEffect(() => () => {
@@ -49,128 +47,132 @@ export function useAdminState() {
     debouncedSetLogSearch.current.cancel()
   }, [])
 
-  // ── Stage duration fetcher ────────────────────────────────────────────────
+  // ── Queries ───────────────────────────────────────────────────────────────
 
-  /**
-   * Fetches per-stage active durations for a batch of order IDs and stores
-   * them in `stageDurations` keyed by `order_id`.
-   *
-   * Stage names are accumulated dynamically from `previous_stage` in logs,
-   * so adding a new pipeline stage requires no changes here.
-   *
-   * @param {string[]} orderIds
-   */
-  const fetchStageTimes = useCallback(async (orderIds) => {
-    if (!orderIds?.length) return
+  const {
+    data: liveData,
+    isLoading: liveLoading,
+    isRefetching: liveRefetching,
+    error: liveError,
+    refetch: refetchLive,
+  } = useQuery({
+    queryKey: ['admin', 'live'],
+    queryFn: async () => {
+      const [liveRes, logsRes] = await Promise.all([
+        supabase
+          .from('orders')
+          .select('*')
+          .neq('current_stage', 'Completed')
+          .order('created_at', { ascending: true }),
+        supabase
+          .from('production_logs')
+          .select('*, orders(vtiger_id)')
+          .order('created_at', { ascending: false })
+          .limit(50),
+      ])
+      if (liveRes.error) throw new Error(liveRes.error.message)
+      if (logsRes.error) throw new Error(logsRes.error.message)
+      return { wipJobs: liveRes.data, logs: logsRes.data }
+    },
+    enabled: activeTab === 'live',
+  })
 
-    const { data, error } = await supabase
-      .from('production_logs')
-      .select('order_id, previous_stage, duration_seconds')
-      .in('order_id', orderIds)
-
-    if (error) { console.error('[fetchStageTimes]', error.message); return }
-
-    const durations = {}
-    for (const log of data ?? []) {
-      const id    = log.order_id
-      const stage = log.previous_stage
-      const secs  = Number(log.duration_seconds) || 0
-      if (!durations[id]) durations[id] = { Total: 0 }
-      if (stage) durations[id][stage] = (durations[id][stage] || 0) + secs
-      durations[id].Total += secs
-    }
-    setStageDurations(durations)
-  }, [])
-
-  // ── Tab-specific fetchers ─────────────────────────────────────────────────
-
-  const fetchLiveData = useCallback(async () => {
-    const [liveRes, logsRes] = await Promise.all([
-      supabase
+  const {
+    data: archiveData,
+    isLoading: archiveLoading,
+    isRefetching: archiveRefetching,
+    error: archiveError,
+    refetch: refetchArchive,
+  } = useQuery({
+    queryKey: ['admin', 'archive'],
+    queryFn: async () => {
+      const { data, error } = await supabase
         .from('orders')
         .select('*')
-        .neq('current_stage', 'Completed')
-        .order('created_at', { ascending: true }),
-      supabase
-        .from('production_logs')
-        .select('*, orders(vtiger_id)')
-        .order('created_at', { ascending: false })
-        .limit(50),
-    ])
-    if (liveRes.error) throw new Error(liveRes.error.message)
-    if (logsRes.error) throw new Error(logsRes.error.message)
-    setWipJobs(liveRes.data ?? [])
-    setLogs(logsRes.data ?? [])
-  }, [])
+        .ilike('current_stage', '%completed%')
+        .order('updated_at', { ascending: false })
+        .limit(100)
+      if (error) throw new Error(error.message)
 
-  const fetchArchiveData = useCallback(async () => {
-    const { data, error } = await supabase
-      .from('orders')
-      .select('*')
-      .ilike('current_stage', '%completed%')
-      .order('updated_at', { ascending: false })
-      .limit(100)
-    if (error) throw new Error(error.message)
-    setCompletedJobs(data ?? [])
-    if (data?.length) await fetchStageTimes(data.map(j => j.id))
-  }, [fetchStageTimes])
+      let durations: Record<string, Record<string, number>> = {}
+      if (data?.length) {
+        const orderIds = data.map(j => j.id)
+        const { data: logsData, error: logsError } = await supabase
+          .from('production_logs')
+          .select('order_id, previous_stage, duration_seconds')
+          .in('order_id', orderIds)
 
-  /** Top-level fetch dispatcher — called on tab change and manual refresh. */
-  const fetchData = useCallback(async () => {
-    setIsRefreshing(true)
-    setLoading(true)
-    setError(null)
-    try {
-      await (activeTab === 'live' ? fetchLiveData() : fetchArchiveData())
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Unknown error'
-      console.error('[fetchData]', msg)
-      setError(`Failed to load data: ${msg}`)
-    } finally {
-      setLoading(false)
-      setIsRefreshing(false)
+        if (!logsError && logsData) {
+          for (const log of logsData) {
+            const id = log.order_id
+            const stage = log.previous_stage
+            const secs = Number(log.duration_seconds) || 0
+            if (!durations[id]) durations[id] = { Total: 0 }
+            if (stage) durations[id][stage] = (durations[id][stage] || 0) + secs
+            durations[id].Total += secs
+          }
+        }
+      }
+      return { completedJobs: data, stageDurations: durations }
+    },
+    enabled: activeTab === 'completed',
+  })
+
+  const wJobs = liveData?.wipJobs ?? []
+  const auditLogs = liveData?.logs ?? []
+  const cJobs = archiveData?.completedJobs ?? []
+  const sDurations = archiveData?.stageDurations ?? {}
+
+  const loading = activeTab === 'live' ? liveLoading : archiveLoading
+  const isRefreshing = activeTab === 'live' ? liveRefetching : archiveRefetching
+  const qError = activeTab === 'live' ? liveError : archiveError
+  const error = qError ? qError.message : null
+
+  const fetchData = useCallback(() => {
+    if (activeTab === 'live') {
+      refetchLive()
+    } else {
+      refetchArchive()
     }
-  }, [activeTab, fetchLiveData, fetchArchiveData])
-
-  useEffect(() => { fetchData() }, [fetchData])
+  }, [activeTab, refetchLive, refetchArchive])
 
   // ── Derived / memoized data ───────────────────────────────────────────────
 
   /** WIP jobs grouped by kanban column key. */
   const stagesMap = useMemo(() => {
-    const map = {}
+    const map: Record<string, any[]> = {}
     for (const col of KANBAN_COLUMNS) {
-      map[col.key] = wipJobs.filter(j => col.stages.includes(j.current_stage))
+      map[col.key] = wJobs.filter((j: any) => col.stages.includes(j.current_stage))
     }
     return map
-  }, [wipJobs])
+  }, [wJobs])
 
   /** Completed jobs filtered by the archive search input. */
   const filteredArchive = useMemo(() => {
     const term = searchTerm.trim().toUpperCase()
-    if (!term) return completedJobs
-    return completedJobs.filter(job =>
+    if (!term) return cJobs
+    return cJobs.filter((job: any) =>
       job.vtiger_id?.toUpperCase().includes(term) ||
       job.article_code?.toUpperCase().includes(term)
     )
-  }, [completedJobs, searchTerm])
+  }, [cJobs, searchTerm])
 
   /** Audit log entries filtered by the log search input. */
   const filteredLogs = useMemo(() => {
     const term = logSearchTerm.trim().toLowerCase()
-    if (!term) return logs
-    return logs.filter(log =>
+    if (!term) return auditLogs
+    return auditLogs.filter((log: any) =>
       log.orders?.vtiger_id?.toLowerCase().includes(term) ||
       log.staff_name?.toLowerCase().includes(term) ||
       log.previous_stage?.toLowerCase().includes(term) ||
       log.new_stage?.toLowerCase().includes(term)
     )
-  }, [logs, logSearchTerm])
+  }, [auditLogs, logSearchTerm])
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
   /** Toggle the detail modal — clicking the same job again closes it. */
-  const handleSelectJob  = useCallback((job) => setSelectedOrder(prev => prev?.id === job.id ? null : job), [])
+  const handleSelectJob = useCallback((job: any) => setSelectedOrder((prev: any) => prev?.id === job.id ? null : job), [])
   const handleCloseModal = useCallback(() => setSelectedOrder(null), [])
 
   // ── Public API ────────────────────────────────────────────────────────────
@@ -179,7 +181,10 @@ export function useAdminState() {
     activeTab, setActiveTab,
 
     // Data
-    wipJobs, completedJobs, stageDurations,
+    // Data
+    wipJobs: wJobs,
+    completedJobs: cJobs,
+    stageDurations: sDurations,
     stagesMap, filteredArchive, filteredLogs,
 
     // UI
@@ -187,7 +192,7 @@ export function useAdminState() {
     selectedOrder,
 
     // Debounced search setters (pass directly to input onChange)
-    onSearchChange:    (e) => debouncedSetSearch.current(e.target.value),
+    onSearchChange: (e) => debouncedSetSearch.current(e.target.value),
     onLogSearchChange: (e) => debouncedSetLogSearch.current(e.target.value),
 
     // Handlers
