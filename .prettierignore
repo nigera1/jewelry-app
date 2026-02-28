@@ -1,0 +1,14 @@
+node_modules
+.next
+out
+dist
+build
+.turbo
+.env.local
+.env.local.example
+coverage
+.DS_Store
+*.log
+*.swp
+*.swo
+*~

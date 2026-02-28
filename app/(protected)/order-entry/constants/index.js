@@ -32,7 +32,7 @@ export const INITIAL_FORM = {
   vtiger_id:             '',
   article_code:          '',
   description:           '',
-  current_stage:         'At Casting',
+  current_stage:         'casting',
   is_rush:               false,
   center_stone_received: false,
   side_stones_received:  false,
